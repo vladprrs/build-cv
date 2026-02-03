@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CreateJobDialog, EditJobDialog } from '@/components/dialogs/job-dialog';
-import { Building2, Calendar, ExternalLink, Trash2, Briefcase, ArrowLeft, Sparkles, Table2 } from 'lucide-react';
+import { Building2, Calendar, ExternalLink, Trash2, Briefcase, ArrowLeft, Sparkles, Table2, Database } from 'lucide-react';
 import Link from 'next/link';
 
 function formatDate(dateStr: string | null): string {
@@ -145,6 +145,12 @@ export default async function JobsPage() {
             <Link href="/export">
               <Sparkles className="h-4 w-4 mr-2" />
               Export
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/backup">
+              <Database className="h-4 w-4 mr-2" />
+              Backup
             </Link>
           </Button>
           <CreateJobDialog />

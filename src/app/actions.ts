@@ -645,6 +645,168 @@ export async function getAllSkills(): Promise<string[]> {
   return Array.from(skillSet).sort();
 }
 
+// ============ BACKUP & IMPORT ============
+
+export interface BackupData {
+  version: string;
+  exportedAt: string;
+  jobs: Job[];
+  highlights: Highlight[];
+}
+
+/**
+ * Export all database data for backup
+ */
+export async function exportDatabase(): Promise<BackupData> {
+  const allJobs = await db.select().from(jobs);
+  const allHighlights = await db.select().from(highlights);
+
+  return {
+    version: "1.0",
+    exportedAt: new Date().toISOString(),
+    jobs: allJobs,
+    highlights: allHighlights,
+  };
+}
+
+// Validation schema for backup import
+const backupJobSchema = z.object({
+  id: z.string().uuid(),
+  company: z.string(),
+  role: z.string(),
+  startDate: z.string(),
+  endDate: z.string().nullable().optional(),
+  logoUrl: z.string().nullable().optional(),
+  website: z.string().nullable().optional(),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const backupHighlightSchema = z.object({
+  id: z.string().uuid(),
+  jobId: z.string().uuid().nullable().optional(),
+  type: z.enum(['achievement', 'project', 'responsibility', 'education']),
+  title: z.string(),
+  content: z.string(),
+  startDate: z.string(),
+  endDate: z.string().nullable().optional(),
+  domains: z.array(z.string()).default([]),
+  skills: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  metrics: z.array(z.object({
+    label: z.string(),
+    value: z.number(),
+    unit: z.string(),
+    prefix: z.string().optional(),
+    description: z.string().optional(),
+  })).default([]),
+  isHidden: z.boolean().default(false),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+
+const backupDataSchema = z.object({
+  version: z.string(),
+  exportedAt: z.string(),
+  jobs: z.array(backupJobSchema),
+  highlights: z.array(backupHighlightSchema),
+});
+
+export interface ImportResult {
+  success: boolean;
+  jobsImported: number;
+  highlightsImported: number;
+  errors: string[];
+}
+
+/**
+ * Import database from backup data
+ * Uses REPLACE to overwrite existing records with same ID
+ */
+export async function importDatabase(backupData: unknown): Promise<ImportResult> {
+  const result: ImportResult = {
+    success: false,
+    jobsImported: 0,
+    highlightsImported: 0,
+    errors: [],
+  };
+
+  try {
+    // Validate backup structure
+    const validated = backupDataSchema.parse(backupData);
+
+    // Import jobs first (highlights may reference them)
+    for (const job of validated.jobs) {
+      try {
+        await db
+          .insert(jobs)
+          .values(job)
+          .onConflictDoUpdate({
+            target: jobs.id,
+            set: {
+              company: job.company,
+              role: job.role,
+              startDate: job.startDate,
+              endDate: job.endDate,
+              logoUrl: job.logoUrl,
+              website: job.website,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+        result.jobsImported++;
+      } catch (err: any) {
+        result.errors.push(`Failed to import job ${job.id}: ${err.message}`);
+      }
+    }
+
+    // Import highlights
+    for (const highlight of validated.highlights) {
+      try {
+        await db
+          .insert(highlights)
+          .values(highlight)
+          .onConflictDoUpdate({
+            target: highlights.id,
+            set: {
+              jobId: highlight.jobId,
+              type: highlight.type,
+              title: highlight.title,
+              content: highlight.content,
+              startDate: highlight.startDate,
+              endDate: highlight.endDate,
+              domains: highlight.domains,
+              skills: highlight.skills,
+              keywords: highlight.keywords,
+              metrics: highlight.metrics,
+              isHidden: highlight.isHidden,
+              updatedAt: new Date().toISOString(),
+            },
+          });
+        result.highlightsImported++;
+      } catch (err: any) {
+        result.errors.push(`Failed to import highlight ${highlight.id}: ${err.message}`);
+      }
+    }
+
+    result.success = result.errors.length === 0;
+
+    // Revalidate all pages
+    revalidatePath('/');
+    revalidatePath('/jobs');
+    revalidatePath('/highlights');
+    revalidatePath('/export');
+
+    return result;
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      result.errors = err.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
+    } else {
+      result.errors.push(err.message || 'Unknown error during import');
+    }
+    return result;
+  }
+}
+
 // ============ RAG EXPORT ============
 
 export interface RAGExportHighlight {

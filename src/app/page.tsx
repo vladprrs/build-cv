@@ -1,7 +1,7 @@
 import { getJobsWithHighlights } from '@/app/actions';
 import { Timeline } from '@/components/timeline';
 import { Button } from '@/components/ui/button';
-import { Briefcase, Plus, Sparkles } from 'lucide-react';
+import { Briefcase, Plus, Sparkles, Database } from 'lucide-react';
 import Link from 'next/link';
 
 export default async function HomePage() {
@@ -31,6 +31,12 @@ export default async function HomePage() {
                 <Link href="/export">
                   <Sparkles className="h-4 w-4 mr-2" />
                   Export
+                </Link>
+              </Button>
+              <Button variant="outline" size="sm" asChild>
+                <Link href="/backup">
+                  <Database className="h-4 w-4 mr-2" />
+                  Backup
                 </Link>
               </Button>
               <Button size="sm" asChild>

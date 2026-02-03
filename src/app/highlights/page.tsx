@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HighlightsTable } from "@/components/highlights-table";
 import { HighlightsFiltersWrapper } from "@/components/highlights-filters-wrapper";
-import { ArrowLeft, Briefcase, Plus, Sparkles } from "lucide-react";
+import { ArrowLeft, Briefcase, Plus, Sparkles, Database } from "lucide-react";
 
 export const metadata = {
   title: "Highlights | Build CV",
@@ -72,6 +72,12 @@ export default async function HighlightsPage({ searchParams }: HighlightsPagePro
               <Link href="/export">
                 <Sparkles className="h-4 w-4 mr-2" />
                 Export
+              </Link>
+            </Button>
+            <Button variant="outline" asChild>
+              <Link href="/backup">
+                <Database className="h-4 w-4 mr-2" />
+                Backup
               </Link>
             </Button>
             <Button asChild>
