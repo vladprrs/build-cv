@@ -638,7 +638,218 @@ npm install clsx tailwind-merge
 
 ---
 
-## 12. Testing Checklist
+## 12. Git Workflow Strategy
+
+AI-агент ведёт себя как senior-разработчик: самостоятельно управляет ветками, делает атомарные коммиты, создаёт PR и мержит после ревью.
+
+### Бранчинг: GitHub Flow
+
+```
+main ──┬──► feature/new-ui        ───► PR ───► merge
+       ├──► feature/api-endpoints ───► PR ───► merge
+       ├──► bugfix/auth-error     ───► PR ───► merge
+       └──► hotfix/critical-bug   ───► PR ───► merge (fast)
+```
+
+**Правила веток:**
+1. **main** — production-ready код, защищённая ветка
+2. **feature/*** — новые фичи (от main)
+3. **bugfix/*** — исправления багов (от main)
+4. **hotfix/*** — срочные фиксы (от main, быстрый PR)
+
+**Именование веток:**
+```bash
+feature/user-authentication
+feature/rag-export-page
+bugfix/dark-mode-toggle
+hotfix/build-error
+```
+
+### Commit Convention: Conventional Commits
+
+```
+<type>(<scope>): <subject>
+
+<body> (optional)
+
+<footer> (optional)
+```
+
+**Типы:**
+- `feat` — новая фича
+- `fix` — исправление бага
+- `docs` — документация
+- `style` — форматирование, отсутствие изменения кода
+- `refactor` — рефакторинг кода
+- `test` — добавление тестов
+- `chore` — обслуживание (зависимости, конфиги)
+
+**Примеры:**
+```bash
+git commit -m "feat(ui): add highlight card component"
+git commit -m "fix(db): correct date format in highlights schema"
+git commit -m "refactor(api): extract highlight queries to separate module"
+git commit -m "docs(readme): add deployment instructions"
+```
+
+**Требования к коммитам:**
+1. **Атомарность** — один коммит = одна логическая задача
+2. **Понятность** — сообщение описывает ЧТО и ПОЧЕМУ, не КАК
+3. **Английский язык** — все сообщения на английском
+4. **Строчные буквы** — первое слово с маленькой буквы
+5. **Без точки в конце** — subject без точки на конце
+
+### Рабочий процесс
+
+#### 1. Начало работы над фичей
+
+```bash
+# Обновить main
+git checkout main
+git pull origin main
+
+# Создать фича-ветку
+git checkout -b feature/nazvanie-fichi
+
+# Работать, коммитить атомарно
+git add <files>
+git commit -m "feat(scope): opisanie"
+
+# Пуш ветки
+git push -u origin feature/nazvanie-fichi
+```
+
+#### 2. Создание Pull Request
+
+```bash
+# Создать PR через GitHub CLI
+gh pr create \
+  --title "feat: kratkoe-opisanie" \
+  --body "## Что сделано
+- Punkt 1
+- Punkt 2
+
+## Как проверить
+1. Shag 1
+2. Shag 2
+
+Closes #<issue-number>"
+```
+
+**Шаблон описания PR:**
+```markdown
+## Changes
+- Brief description of changes
+
+## Testing
+- How to test these changes
+
+## Screenshots (if UI)
+<!-- Add screenshots -->
+
+Closes #<issue-number>
+```
+
+#### 3. Code Review & Merge
+
+```bash
+# Проверить статус PR
+gh pr view
+
+# Посмотреть CI статус
+gh pr checks
+
+# Сквош-мерж (для фич)
+git checkout main
+git pull origin main
+gh pr merge --squash --delete-branch
+
+# Обычный мерж (для hotfix)
+gh pr merge --merge --delete-branch
+```
+
+**Правила мержа:**
+- **Squash merge** — для feature/bugfix веток (чистая история main)
+- **Regular merge** — для long-running веток, если нужна полная история
+- **Fast-forward** — никогда, всегда через PR
+
+### Работа с конфликтами
+
+```bash
+# При конфликте при rebase/merge
+git status                    # Посмотреть конфликтные файлы
+# Решить конфликты в файлах
+git add <resolved-files>
+git rebase --continue         # или git merge --continue
+
+# Если нужно отменить
+git rebase --abort            # или git merge --abort
+```
+
+### Синхронизация веток
+
+```bash
+# Обновить feature-ветку из main
+git checkout feature/x
+git fetch origin
+git rebase origin/main
+
+# Force push после rebase (если ветка уже на GitHub)
+git push --force-with-lease origin feature/x
+```
+
+### Полезные команды
+
+```bash
+# Быстрый просмотр статуса
+git status -sb
+
+# Лог с графом
+git log --graph --oneline --decorate --all -15
+
+# Что изменится при push
+git diff --stat origin/main
+
+# Amend последнего коммита (если ещё не запушен)
+git commit --amend --no-edit
+
+# Список веток
+git branch -vv
+
+# Удалить локальную ветку
+git branch -D feature/old-branch
+
+# Удалить remote ветки, которых больше нет на сервере
+git fetch --prune
+```
+
+### Когда делать коммит
+
+**Коммить ЧАСТО:**
+- После завершения одной логической задачи
+- Перед переключением на другую задачу
+- Перед большим рефакторингом (чекпоинт)
+- После исправления CR замечаний
+
+**НЕ коммить:**
+- Нерабочий/ломающий билд код (если только не WIP-коммит)
+- Секреты, API keys, .env файлы
+- Временные файлы, логи
+
+### WIP коммиты
+
+Если нужно сохранить промежуточное состояние:
+
+```bash
+git commit -m "wip: description [ci skip]"
+
+# Потом --amend перед финальным пушем
+git commit --amend -m "feat: final description"
+```
+
+---
+
+## 13. Testing Checklist
 
 ### Local Development
 - [ ] Form validation works (empty fields, invalid dates)
@@ -659,10 +870,9 @@ npm install clsx tailwind-merge
 - [ ] Server Actions function correctly with Turso
 - [ ] No runtime errors in Vercel Logs
 
----
-
 **Design System:** Tailark Veil (https://tailark.com/veil)  
 **Deployment:** Vercel (https://vercel.com)  
 **Database:** Turso (https://turso.tech) — libSQL/SQLite edge database  
+**Repository:** https://github.com/vladprrs/build-cv  
 **Last Updated:** 2026-02-03  
 **Version:** 1.0 MVP
