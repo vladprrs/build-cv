@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CreateJobDialog, EditJobDialog } from '@/components/dialogs/job-dialog';
-import { Building2, Calendar, ExternalLink, Trash2, Briefcase, ArrowLeft } from 'lucide-react';
+import { Building2, Calendar, ExternalLink, Trash2, Briefcase, ArrowLeft, Sparkles, Table2 } from 'lucide-react';
 import Link from 'next/link';
 
 function formatDate(dateStr: string | null): string {
@@ -134,7 +134,21 @@ export default async function JobsPage() {
             Manage your career history and positions.
           </p>
         </div>
-        <CreateJobDialog />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/highlights">
+              <Table2 className="h-4 w-4 mr-2" />
+              Highlights
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/export">
+              <Sparkles className="h-4 w-4 mr-2" />
+              Export
+            </Link>
+          </Button>
+          <CreateJobDialog />
+        </div>
       </div>
 
       {jobs.length === 0 ? (

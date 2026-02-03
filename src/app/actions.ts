@@ -644,3 +644,82 @@ export async function getAllSkills(): Promise<string[]> {
 
   return Array.from(skillSet).sort();
 }
+
+// ============ RAG EXPORT ============
+
+export interface RAGExportHighlight {
+  id: string;
+  title: string;
+  company?: string;
+  period: string;
+  description: string;
+  metrics: string;
+  tags: string[];
+}
+
+export interface RAGExportData {
+  context: string;
+  request_filters: {
+    domains?: string[];
+    skills?: string[];
+    types?: HighlightType[];
+    query?: string;
+    onlyWithMetrics?: boolean;
+  };
+  highlights: RAGExportHighlight[];
+}
+
+/**
+ * Export highlights in RAG format for AI resume generation
+ */
+export async function exportHighlightsForRAG(
+  customContext?: string,
+  filters?: SearchFilters
+): Promise<RAGExportData> {
+  // Get filtered highlights
+  const highlightsWithJobs = await searchHighlights(filters || {});
+
+  // Format highlights for RAG
+  const formattedHighlights: RAGExportHighlight[] = highlightsWithJobs.map((h) => {
+    // Format period
+    const startDate = h.startDate;
+    const endDate = h.endDate || "Present";
+    const period = `${startDate} - ${endDate}`;
+
+    // Format metrics as string
+    const metricsStr = h.metrics && h.metrics.length > 0
+      ? h.metrics.map((m) => `${m.label}: ${m.prefix || ""}${m.value}${m.unit}`).join("; ")
+      : "";
+
+    // Combine all tags
+    const tags = [...h.domains, ...h.skills, ...h.keywords];
+
+    return {
+      id: h.id,
+      title: h.title,
+      company: h.job?.company || undefined,
+      period,
+      description: h.content,
+      metrics: metricsStr,
+      tags,
+    };
+  });
+
+  // Default context if not provided
+  const context = customContext || 
+    "Professional experience highlights for resume generation. Each highlight represents a specific achievement, project, responsibility, or education entry with associated metrics and tags.";
+
+  return {
+    context,
+    request_filters: {
+      domains: filters?.domains,
+      skills: filters?.skills,
+      types: filters?.types,
+      query: filters?.query,
+      onlyWithMetrics: filters?.onlyWithMetrics,
+    },
+    highlights: formattedHighlights,
+  };
+}
+
+
