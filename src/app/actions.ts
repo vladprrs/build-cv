@@ -363,6 +363,45 @@ export async function deleteHighlight(id: string) {
 }
 
 /**
+ * Get all jobs with their highlights (for Timeline view)
+ */
+export interface JobWithHighlights extends Job {
+  highlights: Highlight[];
+}
+
+export async function getJobsWithHighlights(): Promise<JobWithHighlights[]> {
+  // First, get all jobs sorted by start date
+  const allJobs = await db
+    .select()
+    .from(jobs)
+    .orderBy(desc(jobs.startDate));
+
+  // Get all visible highlights
+  const allHighlights = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.isHidden, false))
+    .orderBy(desc(highlights.startDate));
+
+  // Group highlights by jobId
+  const highlightsByJob = new Map<string, Highlight[]>();
+  for (const highlight of allHighlights) {
+    if (highlight.jobId) {
+      if (!highlightsByJob.has(highlight.jobId)) {
+        highlightsByJob.set(highlight.jobId, []);
+      }
+      highlightsByJob.get(highlight.jobId)!.push(highlight);
+    }
+  }
+
+  // Map jobs with their highlights
+  return allJobs.map((job) => ({
+    ...job,
+    highlights: highlightsByJob.get(job.id) || [],
+  }));
+}
+
+/**
  * Toggle highlight visibility (soft delete)
  */
 export async function toggleHighlightVisibility(id: string) {

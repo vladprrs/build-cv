@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CreateJobDialog, EditJobDialog } from '@/components/dialogs/job-dialog';
-import { Building2, Calendar, ExternalLink, Trash2, Briefcase } from 'lucide-react';
+import { Building2, Calendar, ExternalLink, Trash2, Briefcase, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 
 function formatDate(dateStr: string | null): string {
@@ -116,6 +116,17 @@ export default async function JobsPage() {
 
   return (
     <div className="container mx-auto py-8 px-4 max-w-4xl">
+      {/* Back link */}
+      <div className="mb-6">
+        <Link 
+          href="/"
+          className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back to Timeline
+        </Link>
+      </div>
+
       <div className="flex items-center justify-between mb-8">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Jobs</h1>
