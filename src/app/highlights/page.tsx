@@ -1,8 +1,14 @@
 import Link from "next/link";
-import { getAllHighlightsWithJobs } from "@/app/actions";
+import {
+  searchHighlights,
+  getAllDomains,
+  getAllSkills,
+  type HighlightType,
+} from "@/app/actions";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { HighlightsTable } from "@/components/highlights-table";
+import { HighlightsFiltersWrapper } from "@/components/highlights-filters-wrapper";
 import { ArrowLeft, Briefcase, Plus } from "lucide-react";
 
 export const metadata = {
@@ -10,8 +16,32 @@ export const metadata = {
   description: "Manage your career highlights and achievements",
 };
 
-export default async function HighlightsPage() {
-  const highlights = await getAllHighlightsWithJobs();
+interface HighlightsPageProps {
+  searchParams: {
+    q?: string;
+    types?: string;
+    domains?: string;
+    skills?: string;
+    metrics?: string;
+  };
+}
+
+export default async function HighlightsPage({ searchParams }: HighlightsPageProps) {
+  // Parse filter params from URL
+  const filters = {
+    query: searchParams.q,
+    types: searchParams.types?.split(",").filter(Boolean) as HighlightType[] | undefined,
+    domains: searchParams.domains?.split(",").filter(Boolean),
+    skills: searchParams.skills?.split(",").filter(Boolean),
+    onlyWithMetrics: searchParams.metrics === "true",
+  };
+
+  // Fetch filtered highlights and filter options in parallel
+  const [highlights, domains, skills] = await Promise.all([
+    searchHighlights(filters),
+    getAllDomains(),
+    getAllSkills(),
+  ]);
 
   return (
     <div className="min-h-screen p-8">
@@ -73,15 +103,20 @@ export default async function HighlightsPage() {
           </Card>
         </div>
 
-        {/* Table */}
+        {/* Table with Filters */}
         <Card>
           <CardHeader>
             <CardTitle>All Highlights</CardTitle>
             <CardDescription>
-              Click on column headers to sort. Select multiple items to delete in bulk.
+              Search and filter your highlights. Click on column headers to sort.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <HighlightsFiltersWrapper
+              domains={domains}
+              skills={skills}
+              resultCount={highlights.length}
+            />
             <HighlightsTable highlights={highlights} />
           </CardContent>
         </Card>

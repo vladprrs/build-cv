@@ -521,3 +521,126 @@ export async function quickUpdateHighlightTitle(id: string, title: string) {
 
   return result[0];
 }
+
+// ============ SEARCH & FILTER ACTIONS ============
+
+export interface SearchFilters {
+  query?: string;
+  types?: HighlightType[];
+  domains?: string[];
+  skills?: string[];
+  onlyWithMetrics?: boolean;
+}
+
+/**
+ * Search highlights with filters
+ * Supports:
+ * - Full-text search in title and content
+ * - Filter by type (multi-select)
+ * - Filter by domain (multi-select) - checks if highlight.domains overlaps with filter
+ * - Filter by skills (multi-select) - checks if highlight.skills overlaps with filter
+ * - Only with metrics toggle
+ */
+export async function searchHighlights(filters: SearchFilters = {}): Promise<HighlightWithJob[]> {
+  const { query, types, domains, skills, onlyWithMetrics } = filters;
+  
+  // Get all non-hidden highlights with their jobs
+  const allHighlights = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.isHidden, false))
+    .orderBy(desc(highlights.startDate));
+
+  // Get all jobs for mapping
+  const allJobs = await db.select().from(jobs);
+  const jobMap = new Map<string, Job>();
+  for (const job of allJobs) {
+    jobMap.set(job.id, job);
+  }
+
+  // Map and filter highlights
+  let filteredHighlights: HighlightWithJob[] = allHighlights.map((highlight) => ({
+    ...highlight,
+    job: highlight.jobId ? jobMap.get(highlight.jobId) || null : null,
+  }));
+
+  // Apply text search (case-insensitive)
+  if (query && query.trim()) {
+    const searchTerm = query.toLowerCase().trim();
+    filteredHighlights = filteredHighlights.filter(
+      (h) =>
+        h.title.toLowerCase().includes(searchTerm) ||
+        h.content.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  // Apply type filter
+  if (types && types.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) => types.includes(h.type));
+  }
+
+  // Apply domain filter (highlight must have at least one of the selected domains)
+  if (domains && domains.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) =>
+      h.domains.some((d) => domains.includes(d))
+    );
+  }
+
+  // Apply skills filter (highlight must have at least one of the selected skills)
+  if (skills && skills.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) =>
+      h.skills.some((s) => skills.includes(s))
+    );
+  }
+
+  // Apply "only with metrics" filter
+  if (onlyWithMetrics) {
+    filteredHighlights = filteredHighlights.filter(
+      (h) => h.metrics && h.metrics.length > 0
+    );
+  }
+
+  return filteredHighlights;
+}
+
+/**
+ * Get all unique domains from highlights (for filter dropdown)
+ */
+export async function getAllDomains(): Promise<string[]> {
+  const allHighlights = await db
+    .select({ domains: highlights.domains })
+    .from(highlights)
+    .where(eq(highlights.isHidden, false));
+
+  const domainSet = new Set<string>();
+  for (const h of allHighlights) {
+    if (h.domains) {
+      for (const d of h.domains) {
+        domainSet.add(d);
+      }
+    }
+  }
+
+  return Array.from(domainSet).sort();
+}
+
+/**
+ * Get all unique skills from highlights (for filter dropdown)
+ */
+export async function getAllSkills(): Promise<string[]> {
+  const allHighlights = await db
+    .select({ skills: highlights.skills })
+    .from(highlights)
+    .where(eq(highlights.isHidden, false));
+
+  const skillSet = new Set<string>();
+  for (const h of allHighlights) {
+    if (h.skills) {
+      for (const s of h.skills) {
+        skillSet.add(s);
+      }
+    }
+  }
+
+  return Array.from(skillSet).sort();
+}
