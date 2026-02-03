@@ -635,6 +635,41 @@ npm install clsx tailwind-merge
     export const runtime = 'edge'; // Turso supports this!
     ```
 14. **Region**: Turso replicates globally, but place Vercel functions close to primary DB for writes
+15. **Production URL**: https://build-cv-henna.vercel.app — всегда доступен для проверки UI
+
+---
+
+## 11.5 AI Testing & UI Validation
+
+### Проверка UI в реальном времени
+
+AI-агент имеет доступ к продакшену и может проверять изменения:
+
+**Process:**
+1. Сделать изменения → commit → push to main
+2. Подождать 30-60 сек (Vercel build)
+3. Открыть https://build-cv-henna.vercel.app
+4. Проверить визуально: layout, colors, typography, interactions
+5. Если что-то не так → создать bugfix ветку → fix → PR
+
+**Что проверять:**
+- [ ] Все страницы загружаются без ошибок
+- [ ] Responsive design (mobile, tablet, desktop)
+- [ ] Dark/Light mode переключение работает
+- [ ] Интерактивные элементы (кнопки, формы) работают
+- [ ] Нет консольных ошибок в DevTools
+- [ ] Performance metrics (Lighthouse)
+
+**Если нужно быстро проверить фичу:**
+```bash
+# Локальный dev сервер
+npm run dev
+
+# Или создать preview deployment из ветки
+git checkout -b feature/test-ui
+git push origin feature/test-ui
+# Vercel создаст preview URL
+```
 
 ---
 
@@ -847,6 +882,48 @@ git commit -m "wip: description [ci skip]"
 git commit --amend -m "feat: final description"
 ```
 
+### Работа с Production (Vercel)
+
+**Production URL:** https://build-cv-henna.vercel.app
+
+**Deploy Workflow:**
+```
+push to main → Vercel Auto-Deploy → Production updated
+```
+
+**Правила деплоя:**
+1. **Main ветка = Production** — всё в main автоматически деплоится
+2. **Проверяй после пуша** — открывай продакшен URL и проверяй изменения
+3. **Feature-ветки = Preview** — PR создаёт preview deployment
+
+**Как проверить деплой:**
+```bash
+# После пуша в main
+git push origin main
+
+# Подождать 30-60 секунд
+# Открыть https://build-cv-henna.vercel.app и проверить
+
+# Проверить статус деплоя на Vercel Dashboard
+# или через CLI (если настроен)
+npx vercel --version  # проверка CLI
+```
+
+**Если нужен ручной деплой:**
+```bash
+# Для preview (из любой ветки)
+npx vercel
+
+# Для production (только из main)
+npx vercel --prod
+```
+
+**Проверка перед продом:**
+- [ ] Локально `npm run build` проходит без ошибок
+- [ ] TypeScript компилируется (`npx tsc --noEmit`)
+- [ ] ESLint не ругается (`npm run lint`)
+- [ ] Все новые env variables добавлены в Vercel Dashboard
+
 ---
 
 ## 13. Testing Checklist
@@ -870,8 +947,15 @@ git commit --amend -m "feat: final description"
 - [ ] Server Actions function correctly with Turso
 - [ ] No runtime errors in Vercel Logs
 
+### Production Validation (https://build-cv-henna.vercel.app)
+- [ ] Главная страница загружается
+- [ ] Навигация между страницами работает
+- [ ] Визуальный стиль соответствует дизайну
+- [ ] Нет 500/404 ошибок
+- [ ] Performance acceptable (Core Web Vitals)
+
 **Design System:** Tailark Veil (https://tailark.com/veil)  
-**Deployment:** Vercel (https://vercel.com)  
+**Deployment:** Vercel (https://vercel.com) — https://build-cv-henna.vercel.app  
 **Database:** Turso (https://turso.tech) — libSQL/SQLite edge database  
 **Repository:** https://github.com/vladprrs/build-cv  
 **Last Updated:** 2026-02-03  
