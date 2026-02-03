@@ -91,43 +91,59 @@ export async function createJob(data: Omit<NewJob, 'id' | 'createdAt' | 'updated
  * Update an existing job
  */
 export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'createdAt' | 'updatedAt'>>) {
-  // Clean up empty strings to null
-  const cleanedData = {
-    ...data,
-    endDate: data.endDate === '' ? null : data.endDate,
-    logoUrl: data.logoUrl === '' ? null : data.logoUrl,
-    website: data.website === '' ? null : data.website,
-  };
+  try {
+    // Clean up empty strings to null
+    const cleanedData = {
+      company: data.company,
+      role: data.role,
+      startDate: data.startDate,
+      endDate: data.endDate === '' || data.endDate === undefined ? null : data.endDate,
+      logoUrl: data.logoUrl === '' || data.logoUrl === undefined ? null : data.logoUrl,
+      website: data.website === '' || data.website === undefined ? null : data.website,
+    };
 
-  // Validate input (partial schema for updates)
-  const partialSchema = jobSchema.partial();
-  const validated = partialSchema.parse(cleanedData);
+    console.log('Updating job:', id, JSON.stringify(cleanedData));
 
-  // Check dates if both provided
-  if (validated.startDate && validated.endDate) {
-    if (validated.startDate > validated.endDate) {
-      throw new Error('End date must be after start date');
+    // Manual validation instead of Zod for now
+    if (!cleanedData.company || cleanedData.company.trim() === '') {
+      throw new Error('Company name is required');
     }
+    if (!cleanedData.role || cleanedData.role.trim() === '') {
+      throw new Error('Role is required');
+    }
+    if (!cleanedData.startDate) {
+      throw new Error('Start date is required');
+    }
+
+    // Check dates if both provided
+    if (cleanedData.startDate && cleanedData.endDate) {
+      if (cleanedData.startDate > cleanedData.endDate) {
+        throw new Error('End date must be after start date');
+      }
+    }
+
+    const now = new Date().toISOString();
+    const result = await db
+      .update(jobs)
+      .set({
+        ...cleanedData,
+        updatedAt: now,
+      })
+      .where(eq(jobs.id, id))
+      .returning();
+
+    if (result.length === 0) {
+      throw new Error('Job not found');
+    }
+
+    revalidatePath('/jobs');
+    revalidatePath('/');
+    
+    return result[0];
+  } catch (error: any) {
+    console.error('updateJob error:', error);
+    throw new Error(error?.message || 'Failed to update job');
   }
-
-  const now = new Date().toISOString();
-  const result = await db
-    .update(jobs)
-    .set({
-      ...validated,
-      updatedAt: now,
-    })
-    .where(eq(jobs.id, id))
-    .returning();
-
-  if (result.length === 0) {
-    throw new Error('Job not found');
-  }
-
-  revalidatePath('/jobs');
-  revalidatePath('/');
-  
-  return result[0];
 }
 
 /**
