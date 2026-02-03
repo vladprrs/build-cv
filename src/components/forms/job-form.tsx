@@ -19,11 +19,15 @@ const jobFormSchema = z.object({
   company: z.string().min(1, 'Company name is required'),
   role: z.string().min(1, 'Role is required'),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
-  logoUrl: z.string().url().optional().nullable(),
-  website: z.string().url().optional().nullable(),
+  endDate: z.union([
+    z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    z.literal(''),
+    z.null(),
+  ]).optional(),
+  logoUrl: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
+  website: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
 }).refine((data) => {
-  if (!data.endDate) return true;
+  if (!data.endDate || data.endDate === '') return true;
   return data.startDate <= data.endDate;
 }, {
   message: 'End date must be after start date',
