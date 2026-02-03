@@ -418,9 +418,106 @@ export async function toggleHighlightVisibility(id: string) {
 
   revalidatePath('/jobs');
   revalidatePath('/');
+  revalidatePath('/highlights');
   if (existing.jobId) {
     revalidatePath(`/jobs/${existing.jobId}`);
   }
   
+  return result[0];
+}
+
+// ============ TABLE VIEW ACTIONS ============
+
+export interface HighlightWithJob extends Highlight {
+  job: Job | null;
+}
+
+/**
+ * Get all highlights with their associated job info (for Table view)
+ */
+export async function getAllHighlightsWithJobs(): Promise<HighlightWithJob[]> {
+  // Get all non-hidden highlights
+  const allHighlights = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.isHidden, false))
+    .orderBy(desc(highlights.startDate));
+
+  // Get all jobs
+  const allJobs = await db.select().from(jobs);
+  
+  // Create job lookup map
+  const jobMap = new Map<string, Job>();
+  for (const job of allJobs) {
+    jobMap.set(job.id, job);
+  }
+
+  // Map highlights with their jobs
+  return allHighlights.map((highlight) => ({
+    ...highlight,
+    job: highlight.jobId ? jobMap.get(highlight.jobId) || null : null,
+  }));
+}
+
+/**
+ * Bulk delete highlights
+ */
+export async function bulkDeleteHighlights(ids: string[]) {
+  if (ids.length === 0) return { deleted: 0 };
+
+  // Get jobIds for revalidation
+  const highlightsToDelete = await db
+    .select({ id: highlights.id, jobId: highlights.jobId })
+    .from(highlights)
+    .where(sql`${highlights.id} IN (${ids.join(',')})`);
+
+  const jobIds = [...new Set(highlightsToDelete.map(h => h.jobId).filter(Boolean))];
+
+  // Delete highlights
+  const result = await db
+    .delete(highlights)
+    .where(sql`${highlights.id} IN (${ids.join(',')})`)
+    .returning();
+
+  // Revalidate all affected paths
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  revalidatePath('/highlights');
+  for (const jobId of jobIds) {
+    if (jobId) revalidatePath(`/jobs/${jobId}`);
+  }
+
+  return { deleted: result.length };
+}
+
+/**
+ * Quick update highlight title (inline editing)
+ */
+export async function quickUpdateHighlightTitle(id: string, title: string) {
+  if (!title.trim()) {
+    throw new Error('Title is required');
+  }
+
+  const existing = await getHighlightById(id);
+  if (!existing) {
+    throw new Error('Highlight not found');
+  }
+
+  const result = await db
+    .update(highlights)
+    .set({ 
+      title: title.trim(), 
+      updatedAt: new Date().toISOString() 
+    })
+    .where(eq(highlights.id, id))
+    .returning();
+
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  revalidatePath('/highlights');
+  if (existing.jobId) {
+    revalidatePath(`/jobs/${existing.jobId}`);
+  }
+
   return result[0];
 }
