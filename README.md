@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Build CV
+
+Headless CMS for managing professional career data. Store atomic "highlights" of experience with rich metadata and enable structured export for AI resume generation.
+
+## Tech Stack
+
+- **Framework:** Next.js 16 (App Router)
+- **Language:** TypeScript
+- **Database:** Turso (libSQL/SQLite edge database)
+- **ORM:** Drizzle ORM
+- **Styling:** Tailwind CSS + shadcn/ui
+- **Deployment:** Vercel
+
+## Project Structure
+
+```
+src/
+├── app/                 # Next.js App Router
+│   ├── page.tsx         # Dashboard
+│   ├── highlights/      # Highlights management
+│   ├── export/          # RAG Export
+│   └── layout.tsx       # Root layout
+├── components/
+│   └── ui/              # shadcn components
+├── db/
+│   ├── schema.ts        # Drizzle schema
+│   └── index.ts         # Database connection
+└── lib/
+    ├── types.ts         # TypeScript types
+    └── utils.ts         # Utilities
+```
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js 20+
+- Turso account (for production database)
+
+### Local Development
 
 ```bash
+# Install dependencies
+npm install
+
+# Run dev server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Database Setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+# Generate migrations
+npm run db:generate
 
-## Learn More
+# Push schema (development)
+npm run db:push
 
-To learn more about Next.js, take a look at the following resources:
+# Run migrations
+npm run db:migrate
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Open Drizzle Studio
+npm run db:studio
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Environment Variables
 
-## Deploy on Vercel
+Create `.env.local`:
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+# Turso Database (production)
+TURSO_DATABASE_URL="libsql://your-db.turso.io"
+TURSO_AUTH_TOKEN="your-token"
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+# Local development
+LOCAL_DB_PATH="./cv_data.db"
+```
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Import your GitHub repository on [Vercel](https://vercel.com)
+2. Add environment variables in Project Settings
+3. Deploy
+
+## License
+
+Private
