@@ -91,9 +91,17 @@ export async function createJob(data: Omit<NewJob, 'id' | 'createdAt' | 'updated
  * Update an existing job
  */
 export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'createdAt' | 'updatedAt'>>) {
+  // Clean up empty strings to null
+  const cleanedData = {
+    ...data,
+    endDate: data.endDate === '' ? null : data.endDate,
+    logoUrl: data.logoUrl === '' ? null : data.logoUrl,
+    website: data.website === '' ? null : data.website,
+  };
+
   // Validate input (partial schema for updates)
   const partialSchema = jobSchema.partial();
-  const validated = partialSchema.parse(data);
+  const validated = partialSchema.parse(cleanedData);
 
   // Check dates if both provided
   if (validated.startDate && validated.endDate) {

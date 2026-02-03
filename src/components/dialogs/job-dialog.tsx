@@ -88,9 +88,9 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
       setOpen(false);
       onSuccess?.();
       router.refresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to update job:', error);
-      alert('Failed to update job. Please try again.');
+      alert('Failed to update job: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
     }
