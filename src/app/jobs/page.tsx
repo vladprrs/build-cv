@@ -34,10 +34,10 @@ interface JobCardProps {
 
 function JobCard({ job }: JobCardProps) {
   return (
-    <Card className="group relative">
+    <Card className="group relative hover:shadow-md transition-shadow">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
-          <div className="flex items-start gap-4">
+          <Link href={`/jobs/${job.id}`} className="flex items-start gap-4 flex-1">
             {job.logoUrl ? (
               <img
                 src={job.logoUrl}
@@ -50,13 +50,13 @@ function JobCard({ job }: JobCardProps) {
               </div>
             )}
             <div>
-              <CardTitle className="text-lg">{job.company}</CardTitle>
+              <CardTitle className="text-lg group-hover:text-primary transition-colors">{job.company}</CardTitle>
               <CardDescription className="flex items-center gap-2 mt-1">
                 <Briefcase className="h-3 w-3" />
                 {job.role}
               </CardDescription>
             </div>
-          </div>
+          </Link>
           <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
             <EditJobDialog 
               job={job} 
@@ -82,31 +82,30 @@ function JobCard({ job }: JobCardProps) {
         </div>
       </CardHeader>
       <CardContent className="pt-0">
-        <div className="flex items-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-1">
-            <Calendar className="h-4 w-4" />
-            {formatDate(job.startDate)} — {formatDate(job.endDate)}
+        <Link href={`/jobs/${job.id}`} className="block">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center gap-1">
+              <Calendar className="h-4 w-4" />
+              {formatDate(job.startDate)} — {formatDate(job.endDate)}
+            </div>
+            <Badge variant="secondary">
+              {formatDuration(job.startDate, job.endDate)}
+            </Badge>
           </div>
-          <Badge variant="secondary">
-            {formatDuration(job.startDate, job.endDate)}
-          </Badge>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          <Badge variant="outline">
-            {job.highlightCount} {job.highlightCount === 1 ? 'highlight' : 'highlights'}
-          </Badge>
-          {job.website && (
-            <Link 
-              href={job.website} 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <ExternalLink className="h-3 w-3" />
-              Website
-            </Link>
-          )}
-        </div>
+          <div className="mt-3 flex items-center gap-3">
+            <Badge variant="outline" className="group-hover:border-primary/50 transition-colors">
+              {job.highlightCount} {job.highlightCount === 1 ? 'highlight' : 'highlights'}
+            </Badge>
+            {job.website && (
+              <span 
+                className="flex items-center gap-1 text-sm text-muted-foreground"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Website
+              </span>
+            )}
+          </div>
+        </Link>
       </CardContent>
     </Card>
   );

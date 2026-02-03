@@ -2,7 +2,7 @@
 
 import { db } from '@/db';
 import { jobs, highlights } from '@/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -169,6 +169,219 @@ export async function deleteJob(id: string) {
 
   revalidatePath('/jobs');
   revalidatePath('/');
+  
+  return result[0];
+}
+
+// ============ HIGHLIGHT TYPES & SCHEMAS ============
+
+export type Highlight = typeof highlights.$inferSelect;
+export type NewHighlight = typeof highlights.$inferInsert;
+export type HighlightType = 'achievement' | 'project' | 'responsibility' | 'education';
+
+export interface Metric {
+  label: string;
+  value: number;
+  unit: string;
+  prefix?: string;
+  description?: string;
+}
+
+const metricSchema = z.object({
+  label: z.string().min(1, 'Label is required'),
+  value: z.number(),
+  unit: z.string().default(''),
+  prefix: z.string().optional(),
+  description: z.string().optional(),
+});
+
+const highlightSchema = z.object({
+  jobId: z.string().uuid().nullable().optional(),
+  type: z.enum(['achievement', 'project', 'responsibility', 'education']),
+  title: z.string().min(1, 'Title is required'),
+  content: z.string().min(1, 'Content is required'),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional().nullable(),
+  domains: z.array(z.string()).default([]),
+  skills: z.array(z.string()).default([]),
+  keywords: z.array(z.string()).default([]),
+  metrics: z.array(metricSchema).default([]),
+  isHidden: z.boolean().default(false),
+});
+
+// ============ HIGHLIGHT SERVER ACTIONS ============
+
+/**
+ * Get all highlights for a specific job
+ */
+export async function getHighlightsByJobId(jobId: string): Promise<Highlight[]> {
+  const result = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.jobId, jobId))
+    .orderBy(desc(highlights.startDate));
+  
+  return result;
+}
+
+/**
+ * Get all highlights with optional filters
+ */
+export async function getHighlights(filters?: {
+  jobId?: string;
+  type?: HighlightType;
+  isHidden?: boolean;
+}): Promise<Highlight[]> {
+  const conditions = [];
+  
+  if (filters?.jobId) {
+    conditions.push(eq(highlights.jobId, filters.jobId));
+  }
+  if (filters?.type) {
+    conditions.push(eq(highlights.type, filters.type));
+  }
+  if (filters?.isHidden !== undefined) {
+    conditions.push(eq(highlights.isHidden, filters.isHidden));
+  }
+  
+  if (conditions.length === 0) {
+    const result = await db
+      .select()
+      .from(highlights)
+      .orderBy(desc(highlights.startDate));
+    return result;
+  }
+  
+  const result = await db
+    .select()
+    .from(highlights)
+    .where(and(...conditions))
+    .orderBy(desc(highlights.startDate));
+  return result;
+}
+
+/**
+ * Get a single highlight by ID
+ */
+export async function getHighlightById(id: string): Promise<Highlight | null> {
+  const result = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.id, id))
+    .limit(1);
+  
+  return result[0] || null;
+}
+
+/**
+ * Create a new highlight
+ */
+export async function createHighlight(data: Omit<NewHighlight, 'id' | 'createdAt' | 'updatedAt'>) {
+  // Validate input
+  const validated = highlightSchema.parse(data);
+  
+  const now = new Date().toISOString();
+  const result = await db
+    .insert(highlights)
+    .values({
+      id: crypto.randomUUID(),
+      ...validated,
+      createdAt: now,
+      updatedAt: now,
+    })
+    .returning();
+
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  if (validated.jobId) {
+    revalidatePath(`/jobs/${validated.jobId}`);
+  }
+  
+  return result[0];
+}
+
+/**
+ * Update an existing highlight
+ */
+export async function updateHighlight(id: string, data: Partial<Omit<NewHighlight, 'id' | 'createdAt' | 'updatedAt'>>) {
+  const existing = await getHighlightById(id);
+  if (!existing) {
+    throw new Error('Highlight not found');
+  }
+
+  const now = new Date().toISOString();
+  
+  // Clean up the data
+  const cleanedData = {
+    ...data,
+    endDate: data.endDate === '' || data.endDate === undefined ? null : data.endDate,
+    domains: data.domains ?? existing.domains,
+    skills: data.skills ?? existing.skills,
+    keywords: data.keywords ?? existing.keywords,
+    metrics: data.metrics ?? existing.metrics,
+  };
+
+  const result = await db
+    .update(highlights)
+    .set({
+      ...cleanedData,
+      updatedAt: now,
+    })
+    .where(eq(highlights.id, id))
+    .returning();
+
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  if (existing.jobId) {
+    revalidatePath(`/jobs/${existing.jobId}`);
+  }
+  
+  return result[0];
+}
+
+/**
+ * Delete a highlight
+ */
+export async function deleteHighlight(id: string) {
+  const existing = await getHighlightById(id);
+  if (!existing) {
+    throw new Error('Highlight not found');
+  }
+
+  const result = await db
+    .delete(highlights)
+    .where(eq(highlights.id, id))
+    .returning();
+
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  if (existing.jobId) {
+    revalidatePath(`/jobs/${existing.jobId}`);
+  }
+  
+  return result[0];
+}
+
+/**
+ * Toggle highlight visibility (soft delete)
+ */
+export async function toggleHighlightVisibility(id: string) {
+  const existing = await getHighlightById(id);
+  if (!existing) {
+    throw new Error('Highlight not found');
+  }
+
+  const result = await db
+    .update(highlights)
+    .set({ isHidden: !existing.isHidden, updatedAt: new Date().toISOString() })
+    .where(eq(highlights.id, id))
+    .returning();
+
+  revalidatePath('/jobs');
+  revalidatePath('/');
+  if (existing.jobId) {
+    revalidatePath(`/jobs/${existing.jobId}`);
+  }
   
   return result[0];
 }
