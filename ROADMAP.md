@@ -15,6 +15,8 @@
 - [x] Сгенерированы миграции (`drizzle-kit generate`)
 - [x] Миграции применены к продакшен базе (`drizzle-kit migrate`)
 - [x] Таблицы созданы: `jobs` (9 columns), `highlights` (14 columns, 1 FK)
+- [x] Тестовые данные добавлены: 3 jobs, 7 highlights с метриками
+- [x] Seed-скрипт (`npm run db:seed`) для быстрого восстановления данных
 
 **Критерий приёмки:**
 ```bash
