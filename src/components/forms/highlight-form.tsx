@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -16,8 +16,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Plus, X, Trash2 } from 'lucide-react';
-import type { HighlightType, Metric } from '@/app/actions';
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '@/components/ui/collapsible';
+import { Plus, X, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
+import type { HighlightType } from '@/app/actions';
 
 const metricSchema = z.object({
   label: z.string().min(1, 'Label is required'),
@@ -31,8 +36,8 @@ const highlightFormSchema = z.object({
   jobId: z.string().uuid().nullable(),
   type: z.enum(['achievement', 'project', 'responsibility', 'education']),
   title: z.string().min(1, 'Title is required'),
-  content: z.string().min(1, 'Content is required'),
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  content: z.string(),
+  startDate: z.string(),
   isCurrent: z.boolean(),
   endDate: z.union([
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
@@ -45,7 +50,7 @@ const highlightFormSchema = z.object({
   metrics: z.array(metricSchema),
   isHidden: z.boolean(),
 }).refine((data) => {
-  if (data.isCurrent || !data.endDate || data.endDate === '') return true;
+  if (data.isCurrent || !data.endDate || data.endDate === '' || !data.startDate) return true;
   return data.startDate <= data.endDate;
 }, {
   message: 'End date must be after start date',
@@ -89,6 +94,10 @@ const typeColors: Record<HighlightType, string> = {
   education: 'text-green-600 bg-green-50 border-green-200',
 };
 
+function getTodayDate() {
+  return new Date().toISOString().split('T')[0];
+}
+
 export function HighlightForm({
   jobId,
   defaultValues,
@@ -96,6 +105,17 @@ export function HighlightForm({
   onCancel,
   isSubmitting = false,
 }: HighlightFormProps) {
+  // Track which sections are expanded
+  const [metricsOpen, setMetricsOpen] = useState(
+    defaultValues?.metrics && defaultValues.metrics.length > 0
+  );
+  const [tagsOpen, setTagsOpen] = useState(
+    (defaultValues?.domains?.length || 0) > 0 ||
+    (defaultValues?.skills?.length || 0) > 0 ||
+    (defaultValues?.keywords?.length || 0) > 0
+  );
+  const [datesOpen, setDatesOpen] = useState(!!defaultValues?.startDate);
+
   const form = useForm<HighlightFormData>({
     resolver: zodResolver(highlightFormSchema),
     defaultValues: {
@@ -103,7 +123,7 @@ export function HighlightForm({
       type: 'achievement',
       title: '',
       content: '',
-      startDate: '',
+      startDate: getTodayDate(),
       isCurrent: false,
       endDate: '',
       domains: [],
@@ -130,6 +150,18 @@ export function HighlightForm({
     }
   }, [isCurrent, form]);
 
+  // Handle Cmd+Enter to submit
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+        e.preventDefault();
+        form.handleSubmit(handleSubmit)();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [form]);
+
   const handleAddMetric = () => {
     appendMetric({
       label: '',
@@ -138,12 +170,15 @@ export function HighlightForm({
       prefix: '',
       description: '',
     });
+    setMetricsOpen(true);
   };
 
   const handleSubmit = (data: HighlightFormData) => {
     // Clean up empty strings to null
     const cleanedData = {
       ...data,
+      content: data.content || '',
+      startDate: data.startDate || getTodayDate(),
       endDate: data.isCurrent || data.endDate === '' ? null : data.endDate,
       jobId: jobId ?? data.jobId,
     };
@@ -151,7 +186,7 @@ export function HighlightForm({
   };
 
   return (
-    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+    <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-4">
       {/* Type Selection */}
       <div className="space-y-2">
         <Label htmlFor="type">Type</Label>
@@ -173,222 +208,254 @@ export function HighlightForm({
             </Select>
           )}
         />
-        {form.formState.errors.type && (
-          <p className="text-sm text-red-500">{form.formState.errors.type.message}</p>
-        )}
       </div>
 
-      {/* Title */}
+      {/* Title - Only required field */}
       <div className="space-y-2">
-        <Label htmlFor="title">Title</Label>
+        <Label htmlFor="title">Title *</Label>
         <Input
           id="title"
           placeholder="e.g., Increased conversion by 25%"
           {...form.register('title')}
+          autoFocus
         />
         {form.formState.errors.title && (
           <p className="text-sm text-red-500">{form.formState.errors.title.message}</p>
         )}
       </div>
 
-      {/* Content */}
+      {/* Content - Optional */}
       <div className="space-y-2">
-        <Label htmlFor="content">Description</Label>
+        <Label htmlFor="content">Description (optional)</Label>
         <Textarea
           id="content"
           placeholder="Describe what you achieved, built, or learned..."
-          rows={4}
+          rows={3}
           {...form.register('content')}
         />
-        {form.formState.errors.content && (
-          <p className="text-sm text-red-500">{form.formState.errors.content.message}</p>
-        )}
       </div>
 
-      {/* Dates */}
-      <div className="grid grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="startDate">Start Date</Label>
-          <Input
-            id="startDate"
-            type="date"
-            {...form.register('startDate')}
-          />
-          {form.formState.errors.startDate && (
-            <p className="text-sm text-red-500">{form.formState.errors.startDate.message}</p>
-          )}
-        </div>
-
-        <div className="space-y-2">
-          <Label htmlFor="endDate">End Date</Label>
-          {!isCurrent ? (
-            <Input
-              id="endDate"
-              type="date"
-              disabled={isCurrent}
-              {...form.register('endDate')}
-            />
-          ) : (
-            <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
-              Present
-            </div>
-          )}
-          {form.formState.errors.endDate && (
-            <p className="text-sm text-red-500">{form.formState.errors.endDate.message}</p>
-          )}
-        </div>
-      </div>
-
-      {/* Current checkbox */}
-      <div className="flex items-center space-x-2">
-        <Checkbox
-          id="isCurrent"
-          checked={isCurrent}
-          onCheckedChange={(checked) => form.setValue('isCurrent', checked as boolean)}
-        />
-        <Label htmlFor="isCurrent" className="text-sm font-normal cursor-pointer">
-          I currently work on this
-        </Label>
-      </div>
-
-      {/* Metrics Section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <Label>Metrics (Optional)</Label>
-          <Button
+      {/* Dates Section - Collapsible */}
+      <Collapsible open={datesOpen} onOpenChange={setDatesOpen}>
+        <CollapsibleTrigger asChild>
+          <button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={handleAddMetric}
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground w-full py-2"
           >
-            <Plus className="w-4 h-4 mr-1" />
-            Add Metric
-          </Button>
-        </div>
-
-        {metricFields.length === 0 && (
-          <p className="text-sm text-muted-foreground">
-            Add metrics to quantify your impact (e.g., "25% increase", "$50K saved")
-          </p>
-        )}
-
-        {metricFields.map((field, index) => (
-          <div key={field.id} className="p-4 rounded-lg border bg-muted/50 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium">Metric {index + 1}</span>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={() => removeMetric(index)}
-                className="text-red-500 hover:text-red-600"
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Label</Label>
-                <Input
-                  placeholder="e.g., Revenue Growth"
-                  {...form.register(`metrics.${index}.label`)}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Prefix</Label>
-                <Input
-                  placeholder="e.g., +, ~, <"
-                  {...form.register(`metrics.${index}.prefix`)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs">Value</Label>
-                <Input
-                  type="number"
-                  step="any"
-                  placeholder="25"
-                  {...form.register(`metrics.${index}.value`, { valueAsNumber: true })}
-                />
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">Unit</Label>
-                <Input
-                  placeholder="e.g., %, users, $"
-                  {...form.register(`metrics.${index}.unit`)}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Description (Optional)</Label>
+            {datesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            Dates
+            {!datesOpen && form.watch('startDate') && (
+              <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                {form.watch('startDate')}
+              </span>
+            )}
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-4 pt-2">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="startDate">Start Date</Label>
               <Input
-                placeholder="Additional context..."
-                {...form.register(`metrics.${index}.description`)}
+                id="startDate"
+                type="date"
+                {...form.register('startDate')}
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="endDate">End Date</Label>
+              {!isCurrent ? (
+                <Input
+                  id="endDate"
+                  type="date"
+                  disabled={isCurrent}
+                  {...form.register('endDate')}
+                />
+              ) : (
+                <div className="flex items-center h-10 px-3 rounded-md border border-input bg-muted text-sm text-muted-foreground">
+                  Present
+                </div>
+              )}
             </div>
           </div>
-        ))}
-      </div>
 
-      {/* Tags Section */}
-      <div className="space-y-4">
-        <Label>Tags (Optional)</Label>
-        
-        {/* Domains */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Domains</Label>
-          <Controller
-            name="domains"
-            control={form.control}
-            render={({ field }) => (
-              <TagInput
-                value={field.value || []}
-                onChange={field.onChange}
-                placeholder="e.g., Fintech, Healthcare, E-commerce"
-              />
-            )}
-          />
-        </div>
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="isCurrent"
+              checked={isCurrent}
+              onCheckedChange={(checked) => form.setValue('isCurrent', checked as boolean)}
+            />
+            <Label htmlFor="isCurrent" className="text-sm font-normal cursor-pointer">
+              I currently work on this
+            </Label>
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
-        {/* Skills */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Skills</Label>
-          <Controller
-            name="skills"
-            control={form.control}
-            render={({ field }) => (
-              <TagInput
-                value={field.value || []}
-                onChange={field.onChange}
-                placeholder="e.g., React, Python, Leadership"
-              />
-            )}
-          />
-        </div>
+      {/* Metrics Section - Collapsible */}
+      <Collapsible open={metricsOpen} onOpenChange={setMetricsOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center justify-between text-sm font-medium text-muted-foreground hover:text-foreground w-full py-2"
+          >
+            <div className="flex items-center gap-2">
+              {metricsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+              Metrics
+              {metricFields.length > 0 && (
+                <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                  {metricFields.length}
+                </span>
+              )}
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                handleAddMetric();
+              }}
+              className="h-7 text-xs"
+            >
+              <Plus className="w-3 h-3 mr-1" />
+              Add
+            </Button>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 pt-2">
+          {metricFields.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Add metrics to quantify your impact (e.g., &quot;25% increase&quot;, &quot;$50K saved&quot;)
+            </p>
+          )}
 
-        {/* Keywords */}
-        <div className="space-y-2">
-          <Label className="text-xs text-muted-foreground">Keywords</Label>
-          <Controller
-            name="keywords"
-            control={form.control}
-            render={({ field }) => (
-              <TagInput
-                value={field.value || []}
-                onChange={field.onChange}
-                placeholder="e.g., A/B Testing, SEO, Performance"
+          {metricFields.map((field, index) => (
+            <div key={field.id} className="p-3 rounded-lg border bg-muted/50 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">Metric {index + 1}</span>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => removeMetric(index)}
+                  className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-4 gap-2">
+                <div className="col-span-2 space-y-1">
+                  <Input
+                    placeholder="Label (e.g., Revenue)"
+                    {...form.register(`metrics.${index}.label`)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Input
+                    placeholder="Prefix (+, ~)"
+                    {...form.register(`metrics.${index}.prefix`)}
+                    className="h-8 text-sm"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <Input
+                    type="number"
+                    step="any"
+                    placeholder="Value"
+                    {...form.register(`metrics.${index}.value`, { valueAsNumber: true })}
+                    className="h-8 text-sm"
+                  />
+                </div>
+              </div>
+
+              <Input
+                placeholder="Unit (%, $, users)"
+                {...form.register(`metrics.${index}.unit`)}
+                className="h-8 text-sm"
               />
+            </div>
+          ))}
+        </CollapsibleContent>
+      </Collapsible>
+
+      {/* Tags Section - Collapsible */}
+      <Collapsible open={tagsOpen} onOpenChange={setTagsOpen}>
+        <CollapsibleTrigger asChild>
+          <button
+            type="button"
+            className="flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground w-full py-2"
+          >
+            {tagsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            Tags
+            {!tagsOpen && (
+              (form.watch('domains')?.length || 0) +
+              (form.watch('skills')?.length || 0) +
+              (form.watch('keywords')?.length || 0)
+            ) > 0 && (
+              <span className="text-xs bg-muted px-2 py-0.5 rounded">
+                {(form.watch('domains')?.length || 0) +
+                  (form.watch('skills')?.length || 0) +
+                  (form.watch('keywords')?.length || 0)}
+              </span>
             )}
-          />
-        </div>
-      </div>
+          </button>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="space-y-3 pt-2">
+          {/* Domains */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Domains</Label>
+            <Controller
+              name="domains"
+              control={form.control}
+              render={({ field }) => (
+                <TagInput
+                  value={field.value || []}
+                  onChange={field.onChange}
+                  placeholder="e.g., Fintech, Healthcare"
+                />
+              )}
+            />
+          </div>
+
+          {/* Skills */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Skills</Label>
+            <Controller
+              name="skills"
+              control={form.control}
+              render={({ field }) => (
+                <TagInput
+                  value={field.value || []}
+                  onChange={field.onChange}
+                  placeholder="e.g., React, Python"
+                />
+              )}
+            />
+          </div>
+
+          {/* Keywords */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Keywords</Label>
+            <Controller
+              name="keywords"
+              control={form.control}
+              render={({ field }) => (
+                <TagInput
+                  value={field.value || []}
+                  onChange={field.onChange}
+                  placeholder="e.g., A/B Testing, SEO"
+                />
+              )}
+            />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
 
       {/* Hidden Checkbox */}
-      <div className="flex items-center space-x-2">
+      <div className="flex items-center space-x-2 pt-2">
         <Checkbox
           id="isHidden"
           checked={form.watch('isHidden')}
@@ -400,15 +467,20 @@ export function HighlightForm({
       </div>
 
       {/* Actions */}
-      <div className="flex justify-end gap-3 pt-4 border-t">
-        {onCancel && (
-          <Button type="button" variant="outline" onClick={onCancel}>
-            Cancel
+      <div className="flex items-center justify-between pt-4 border-t">
+        <span className="text-xs text-muted-foreground hidden sm:inline">
+          <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘↵</kbd> to save
+        </span>
+        <div className="flex gap-3 ml-auto">
+          {onCancel && (
+            <Button type="button" variant="outline" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? 'Saving...' : defaultValues?.title ? 'Update' : 'Create'}
           </Button>
-        )}
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? 'Saving...' : defaultValues?.title ? 'Update' : 'Create'}
-        </Button>
+        </div>
       </div>
     </form>
   );
@@ -442,11 +514,11 @@ function TagInput({ value, onChange, placeholder }: TagInputProps) {
   };
 
   return (
-    <div className="flex flex-wrap items-center gap-2 p-2 border rounded-md bg-background min-h-[42px]">
+    <div className="flex flex-wrap items-center gap-1.5 p-2 border rounded-md bg-background min-h-[38px]">
       {value.map((tag) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-secondary text-secondary-foreground rounded-md"
+          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs bg-secondary text-secondary-foreground rounded"
         >
           {tag}
           <button
@@ -462,7 +534,7 @@ function TagInput({ value, onChange, placeholder }: TagInputProps) {
         type="text"
         placeholder={value.length === 0 ? placeholder : ''}
         onKeyDown={handleKeyDown}
-        className="flex-1 min-w-[120px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
+        className="flex-1 min-w-[100px] bg-transparent outline-none text-sm placeholder:text-muted-foreground"
       />
     </div>
   );

@@ -17,10 +17,15 @@ import { useRouter } from 'next/navigation';
 
 interface CreateJobDialogProps {
   onSuccess?: () => void;
+  trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function CreateJobDialog({ onSuccess }: CreateJobDialogProps) {
-  const [open, setOpen] = useState(false);
+export function CreateJobDialog({ onSuccess, trigger, open: controlledOpen, onOpenChange }: CreateJobDialogProps) {
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
 
@@ -49,10 +54,12 @@ export function CreateJobDialog({ onSuccess }: CreateJobDialogProps) {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Job
-        </Button>
+        {trigger || (
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Job
+          </Button>
+        )}
       </DialogTrigger>
       <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>

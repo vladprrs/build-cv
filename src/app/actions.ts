@@ -807,6 +807,109 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
   }
 }
 
+// ============ UNIFIED FEED ============
+
+export interface JobWithFilteredHighlights extends Job {
+  highlights: Highlight[];
+  allHighlightsCount: number;
+}
+
+/**
+ * Search jobs with filtered highlights for Unified Feed
+ * Returns all jobs with their highlights filtered by search criteria
+ * Jobs with no matching highlights are included but shown collapsed
+ */
+export async function searchJobsWithHighlights(
+  filters: SearchFilters = {}
+): Promise<JobWithFilteredHighlights[]> {
+  // Get all jobs sorted by start date
+  const allJobs = await db
+    .select()
+    .from(jobs)
+    .orderBy(desc(jobs.startDate));
+
+  // Get all visible highlights
+  const allHighlights = await db
+    .select()
+    .from(highlights)
+    .where(eq(highlights.isHidden, false))
+    .orderBy(desc(highlights.startDate));
+
+  // Get all jobs for mapping
+  const allJobsMap = await db.select().from(jobs);
+  const jobMap = new Map<string, Job>();
+  for (const job of allJobsMap) {
+    jobMap.set(job.id, job);
+  }
+
+  // Count total highlights per job (before filtering)
+  const highlightCountByJob = new Map<string, number>();
+  for (const h of allHighlights) {
+    if (h.jobId) {
+      highlightCountByJob.set(h.jobId, (highlightCountByJob.get(h.jobId) || 0) + 1);
+    }
+  }
+
+  // Apply filters to highlights
+  let filteredHighlights = allHighlights;
+
+  // Text search
+  if (filters.query && filters.query.trim()) {
+    const searchTerm = filters.query.toLowerCase().trim();
+    filteredHighlights = filteredHighlights.filter(
+      (h) =>
+        h.title.toLowerCase().includes(searchTerm) ||
+        h.content.toLowerCase().includes(searchTerm)
+    );
+  }
+
+  // Type filter
+  if (filters.types && filters.types.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) =>
+      filters.types!.includes(h.type)
+    );
+  }
+
+  // Domain filter
+  if (filters.domains && filters.domains.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) =>
+      h.domains.some((d) => filters.domains!.includes(d))
+    );
+  }
+
+  // Skills filter
+  if (filters.skills && filters.skills.length > 0) {
+    filteredHighlights = filteredHighlights.filter((h) =>
+      h.skills.some((s) => filters.skills!.includes(s))
+    );
+  }
+
+  // Only with metrics filter
+  if (filters.onlyWithMetrics) {
+    filteredHighlights = filteredHighlights.filter(
+      (h) => h.metrics && h.metrics.length > 0
+    );
+  }
+
+  // Group filtered highlights by job
+  const filteredHighlightsByJob = new Map<string, Highlight[]>();
+  for (const h of filteredHighlights) {
+    if (h.jobId) {
+      if (!filteredHighlightsByJob.has(h.jobId)) {
+        filteredHighlightsByJob.set(h.jobId, []);
+      }
+      filteredHighlightsByJob.get(h.jobId)!.push(h);
+    }
+  }
+
+  // Map jobs with their filtered highlights
+  return allJobs.map((job) => ({
+    ...job,
+    highlights: filteredHighlightsByJob.get(job.id) || [],
+    allHighlightsCount: highlightCountByJob.get(job.id) || 0,
+  }));
+}
+
 // ============ RAG EXPORT ============
 
 export interface RAGExportHighlight {

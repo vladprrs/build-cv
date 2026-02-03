@@ -30,17 +30,23 @@ import {
 } from '@/components/ui/alert-dialog';
 
 interface CreateHighlightDialogProps {
-  jobId: string;
+  jobId?: string;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
 export function CreateHighlightDialog({
   jobId,
   onSuccess,
   trigger,
+  open: controlledOpen,
+  onOpenChange,
 }: CreateHighlightDialogProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const open = controlledOpen ?? internalOpen;
+  const setOpen = onOpenChange ?? setInternalOpen;
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +56,7 @@ export function CreateHighlightDialog({
 
     try {
       await createHighlight({
-        jobId,
+        jobId: jobId || null,
         type: data.type,
         title: data.title,
         content: data.content,
