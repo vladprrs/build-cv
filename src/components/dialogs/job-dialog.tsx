@@ -27,18 +27,20 @@ export function CreateJobDialog({ onSuccess }: CreateJobDialogProps) {
   async function handleSubmit(data: JobFormData) {
     setIsLoading(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { isCurrent, ...jobData } = data as any;
       await createJob({
-        ...data,
-        logoUrl: data.logoUrl || null,
-        website: data.website || null,
-        endDate: data.endDate || null,
+        ...jobData,
+        logoUrl: jobData.logoUrl || null,
+        website: jobData.website || null,
+        endDate: isCurrent ? null : (jobData.endDate || null),
       });
       setOpen(false);
       onSuccess?.();
       router.refresh();
-    } catch (error) {
+    } catch (error: any) {
       console.error('Failed to create job:', error);
-      alert('Failed to create job. Please try again.');
+      alert('Failed to create job: ' + (error?.message || 'Unknown error'));
     } finally {
       setIsLoading(false);
     }
@@ -79,11 +81,13 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
   async function handleSubmit(data: JobFormData) {
     setIsLoading(true);
     try {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { isCurrent, ...jobData } = data as any;
       await updateJob(job.id, {
-        ...data,
-        logoUrl: data.logoUrl || null,
-        website: data.website || null,
-        endDate: data.endDate || null,
+        ...jobData,
+        logoUrl: jobData.logoUrl || null,
+        website: jobData.website || null,
+        endDate: isCurrent ? null : (jobData.endDate || null),
       });
       setOpen(false);
       onSuccess?.();
@@ -117,6 +121,7 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
             company: job.company,
             role: job.role,
             startDate: job.startDate,
+            isCurrent: !job.endDate,
             endDate: job.endDate || '',
             logoUrl: job.logoUrl || '',
             website: job.website || '',

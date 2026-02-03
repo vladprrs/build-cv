@@ -1,6 +1,7 @@
 'use client';
 
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
+import { useEffect } from 'react';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
@@ -13,12 +14,14 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Loader2 } from 'lucide-react';
 
 const jobFormSchema = z.object({
   company: z.string().min(1, 'Company name is required'),
   role: z.string().min(1, 'Role is required'),
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format'),
+  isCurrent: z.boolean(),
   endDate: z.union([
     z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
     z.literal(''),
@@ -27,7 +30,7 @@ const jobFormSchema = z.object({
   logoUrl: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
   website: z.union([z.string().url(), z.literal(''), z.null()]).optional(),
 }).refine((data) => {
-  if (!data.endDate || data.endDate === '') return true;
+  if (data.isCurrent || !data.endDate || data.endDate === '') return true;
   return data.startDate <= data.endDate;
 }, {
   message: 'End date must be after start date',
@@ -37,7 +40,7 @@ const jobFormSchema = z.object({
 export type JobFormData = z.infer<typeof jobFormSchema>;
 
 interface JobFormProps {
-  defaultValues?: Partial<JobFormData>;
+  defaultValues?: Partial<JobFormData> & { isCurrent?: boolean };
   onSubmit: (data: JobFormData) => void;
   isLoading?: boolean;
   submitLabel?: string;
@@ -50,12 +53,23 @@ export function JobForm({ defaultValues, onSubmit, isLoading, submitLabel = 'Sav
       company: '',
       role: '',
       startDate: '',
+      isCurrent: false,
       endDate: '',
       logoUrl: '',
       website: '',
       ...defaultValues,
     },
   });
+
+  // Watch isCurrent to conditionally show/hide end date
+  const isCurrent = useWatch({ control: form.control, name: 'isCurrent' });
+
+  // Clear endDate when isCurrent becomes true
+  useEffect(() => {
+    if (isCurrent) {
+      form.setValue('endDate', '');
+    }
+  }, [isCurrent, form]);
 
   return (
     <Form {...form}>
@@ -88,27 +102,45 @@ export function JobForm({ defaultValues, onSubmit, isLoading, submitLabel = 'Sav
           )}
         />
 
-        <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name="startDate"
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Start Date *</FormLabel>
-                <FormControl>
-                  <Input type="date" {...field} />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+        <FormField
+          control={form.control}
+          name="startDate"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Start Date *</FormLabel>
+              <FormControl>
+                <Input type="date" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
+        <FormField
+          control={form.control}
+          name="isCurrent"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel>I currently work here</FormLabel>
+              </div>
+            </FormItem>
+          )}
+        />
+
+        {!isCurrent && (
           <FormField
             control={form.control}
             name="endDate"
             render={({ field }) => (
               <FormItem>
-                <FormLabel>End Date (leave empty if current)</FormLabel>
+                <FormLabel>End Date</FormLabel>
                 <FormControl>
                   <Input 
                     type="date" 
@@ -120,7 +152,7 @@ export function JobForm({ defaultValues, onSubmit, isLoading, submitLabel = 'Sav
               </FormItem>
             )}
           />
-        </div>
+        )}
 
         <FormField
           control={form.control}
