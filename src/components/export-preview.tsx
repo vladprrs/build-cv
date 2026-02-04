@@ -5,8 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { type RAGExportData } from "@/app/actions";
-import { generateMarkdownExport } from "@/lib/export-utils";
+import { type RAGExportData } from "@/lib/n8n/workflow";
 import { 
   Copy, 
   Check, 
@@ -15,7 +14,6 @@ import {
   Sparkles,
   AlertCircle 
 } from "lucide-react";
-import { cn } from "@/lib/utils";
 
 interface ExportPreviewProps {
   data: RAGExportData;

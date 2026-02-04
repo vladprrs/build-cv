@@ -138,12 +138,13 @@ export default function SettingsPage() {
           fileInputRef.current.value = '';
         }
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to parse backup file';
       setImportResult({
         success: false,
         jobsImported: 0,
         highlightsImported: 0,
-        errors: [err.message || 'Failed to parse backup file'],
+        errors: [message],
       });
     } finally {
       setIsImporting(false);

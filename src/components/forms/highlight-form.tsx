@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useForm, useFieldArray, Controller } from 'react-hook-form';
+import { useEffect, useState, useCallback } from 'react';
+import { useForm, useFieldArray, Controller, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
@@ -140,8 +140,24 @@ export function HighlightForm({
     name: 'metrics',
   });
 
-  const isCurrent = form.watch('isCurrent');
-  const type = form.watch('type');
+  const isCurrent = useWatch({ control: form.control, name: 'isCurrent' });
+  const startDate = useWatch({ control: form.control, name: 'startDate' });
+  const domains = useWatch({ control: form.control, name: 'domains' });
+  const skills = useWatch({ control: form.control, name: 'skills' });
+  const keywords = useWatch({ control: form.control, name: 'keywords' });
+  const isHidden = useWatch({ control: form.control, name: 'isHidden' });
+
+  const handleSubmit = useCallback((data: HighlightFormData) => {
+    // Clean up empty strings to null
+    const cleanedData = {
+      ...data,
+      content: data.content || '',
+      startDate: data.startDate || getTodayDate(),
+      endDate: data.isCurrent || data.endDate === '' ? null : data.endDate,
+      jobId: jobId ?? data.jobId,
+    };
+    onSubmit(cleanedData);
+  }, [jobId, onSubmit]);
 
   // Clear end date when "current" is checked
   useEffect(() => {
@@ -160,7 +176,7 @@ export function HighlightForm({
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [form]);
+  }, [form, handleSubmit]);
 
   const handleAddMetric = () => {
     appendMetric({
@@ -171,18 +187,6 @@ export function HighlightForm({
       description: '',
     });
     setMetricsOpen(true);
-  };
-
-  const handleSubmit = (data: HighlightFormData) => {
-    // Clean up empty strings to null
-    const cleanedData = {
-      ...data,
-      content: data.content || '',
-      startDate: data.startDate || getTodayDate(),
-      endDate: data.isCurrent || data.endDate === '' ? null : data.endDate,
-      jobId: jobId ?? data.jobId,
-    };
-    onSubmit(cleanedData);
   };
 
   return (
@@ -244,9 +248,9 @@ export function HighlightForm({
           >
             {datesOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             Dates
-            {!datesOpen && form.watch('startDate') && (
+            {!datesOpen && startDate && (
               <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                {form.watch('startDate')}
+                {startDate}
               </span>
             )}
           </button>
@@ -391,14 +395,14 @@ export function HighlightForm({
             {tagsOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
             Tags
             {!tagsOpen && (
-              (form.watch('domains')?.length || 0) +
-              (form.watch('skills')?.length || 0) +
-              (form.watch('keywords')?.length || 0)
+              (domains?.length || 0) +
+              (skills?.length || 0) +
+              (keywords?.length || 0)
             ) > 0 && (
               <span className="text-xs bg-muted px-2 py-0.5 rounded">
-                {(form.watch('domains')?.length || 0) +
-                  (form.watch('skills')?.length || 0) +
-                  (form.watch('keywords')?.length || 0)}
+                {(domains?.length || 0) +
+                  (skills?.length || 0) +
+                  (keywords?.length || 0)}
               </span>
             )}
           </button>
@@ -458,7 +462,7 @@ export function HighlightForm({
       <div className="flex items-center space-x-2 pt-2">
         <Checkbox
           id="isHidden"
-          checked={form.watch('isHidden')}
+          checked={isHidden}
           onCheckedChange={(checked) => form.setValue('isHidden', checked as boolean)}
         />
         <Label htmlFor="isHidden" className="text-sm font-normal cursor-pointer">

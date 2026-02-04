@@ -5,6 +5,12 @@ import { jobs, highlights } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import {
+  generateN8nWorkflow,
+  type N8nWorkflowOptions,
+  type RAGExportData,
+  type RAGExportHighlight,
+} from '@/lib/n8n/workflow';
 
 // ============ TYPES ============
 
@@ -140,9 +146,10 @@ export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'c
     revalidatePath('/');
     
     return result[0];
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('updateJob error:', error);
-    throw new Error(error?.message || 'Failed to update job');
+    const message = error instanceof Error ? error.message : 'Failed to update job';
+    throw new Error(message);
   }
 }
 
@@ -856,8 +863,9 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
             },
           });
         result.jobsImported++;
-      } catch (err: any) {
-        result.errors.push(`Failed to import job ${job.id}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import job ${job.id}: ${message}`);
       }
     }
 
@@ -895,8 +903,9 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
             },
           });
         result.highlightsImported++;
-      } catch (err: any) {
-        result.errors.push(`Failed to import highlight ${highlight.id}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import highlight ${highlight.id}: ${message}`);
       }
     }
 
@@ -909,11 +918,12 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
     revalidatePath('/export');
 
     return result;
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       result.errors = err.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
     } else {
-      result.errors.push(err.message || 'Unknown error during import');
+      const message = err instanceof Error ? err.message : 'Unknown error during import';
+      result.errors.push(message);
     }
     return result;
   }
@@ -1051,27 +1061,6 @@ export async function searchJobsWithHighlights(
 
 // ============ RAG EXPORT ============
 
-export interface RAGExportHighlight {
-  id: string;
-  title: string;
-  company?: string;
-  period: string;
-  description: string;
-  metrics: string;
-  tags: string[];
-}
-
-export interface RAGExportData {
-  context: string;
-  request_filters: {
-    domains?: string[];
-    skills?: string[];
-    types?: HighlightType[];
-    query?: string;
-    onlyWithMetrics?: boolean;
-  };
-  highlights: RAGExportHighlight[];
-}
 
 /**
  * Export highlights in RAG format for AI resume generation
@@ -1124,4 +1113,16 @@ export async function exportHighlightsForRAG(
     },
     highlights: formattedHighlights,
   };
+}
+
+/**
+ * Export n8n workflow for resume optimization using OpenRouter
+ */
+export async function exportN8nWorkflow(
+  customContext?: string,
+  filters?: SearchFilters,
+  options?: N8nWorkflowOptions
+) {
+  const data = await exportHighlightsForRAG(customContext, filters);
+  return generateN8nWorkflow(data, options);
 }

@@ -51,15 +51,6 @@ export function HighlightsFilters({
     searchParams.get("metrics") === "true"
   );
 
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      updateUrl();
-    }, 300);
-
-    return () => clearTimeout(timer);
-  }, [searchQuery, selectedTypes, selectedDomains, selectedSkills, onlyWithMetrics]);
-
   // Update URL with filter params
   const updateUrl = useCallback(() => {
     const params = new URLSearchParams();
@@ -82,9 +73,18 @@ export function HighlightsFilters({
 
     const queryString = params.toString();
     const newUrl = queryString ? `/highlights?${queryString}` : "/highlights";
-    
+
     router.push(newUrl, { scroll: false });
   }, [searchQuery, selectedTypes, selectedDomains, selectedSkills, onlyWithMetrics, router]);
+
+  // Debounced search
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      updateUrl();
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [updateUrl]);
 
   // Toggle type selection
   const toggleType = (type: HighlightType) => {

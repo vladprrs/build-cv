@@ -63,7 +63,7 @@ async function seed() {
     await client.execute('DELETE FROM highlights');
     await client.execute('DELETE FROM jobs');
     console.log('🗑️  Cleared existing data');
-  } catch (e) {
+  } catch {
     console.log('ℹ️  No existing data to clear');
   }
 

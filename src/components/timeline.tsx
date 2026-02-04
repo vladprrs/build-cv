@@ -6,8 +6,9 @@ import { Badge } from '@/components/ui/badge';
 import { HighlightCard } from '@/components/cards/highlight-card';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { Building2, Calendar, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
-import type { JobWithHighlights, Highlight, Job } from '@/app/actions';
+import type { JobWithHighlights } from '@/app/actions';
 import Link from 'next/link';
+import Image from 'next/image';
 
 interface TimelineProps {
   jobs: JobWithHighlights[];
@@ -56,9 +57,12 @@ function TimelineJobCard({ job, onUpdate }: TimelineJobCardProps) {
               {/* Logo with timeline dot */}
               <div className="relative">
                 {job.logoUrl ? (
-                  <img
+                  <Image
                     src={job.logoUrl}
                     alt={job.company}
+                    width={48}
+                    height={48}
+                    unoptimized
                     className="h-12 w-12 rounded-lg object-cover"
                   />
                 ) : (
