@@ -32,8 +32,7 @@ export function CreateJobDialog({ onSuccess, trigger, open: controlledOpen, onOp
   async function handleSubmit(data: JobFormData) {
     setIsLoading(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { isCurrent, ...jobData } = data as any;
+      const { isCurrent, ...jobData } = data;
       await createJob({
         ...jobData,
         logoUrl: jobData.logoUrl || null,
@@ -43,9 +42,10 @@ export function CreateJobDialog({ onSuccess, trigger, open: controlledOpen, onOp
       setOpen(false);
       onSuccess?.();
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to create job:', error);
-      alert('Failed to create job: ' + (error?.message || 'Unknown error'));
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Failed to create job: ' + message);
     } finally {
       setIsLoading(false);
     }
@@ -88,8 +88,7 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
   async function handleSubmit(data: JobFormData) {
     setIsLoading(true);
     try {
-      // eslint-disable-next-line @typescript-eslint/no-unused-vars
-      const { isCurrent, ...jobData } = data as any;
+      const { isCurrent, ...jobData } = data;
       await updateJob(job.id, {
         ...jobData,
         logoUrl: jobData.logoUrl || null,
@@ -99,9 +98,10 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
       setOpen(false);
       onSuccess?.();
       router.refresh();
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Failed to update job:', error);
-      alert('Failed to update job: ' + (error?.message || 'Unknown error'));
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      alert('Failed to update job: ' + message);
     } finally {
       setIsLoading(false);
     }

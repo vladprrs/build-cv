@@ -146,9 +146,10 @@ export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'c
     revalidatePath('/');
     
     return result[0];
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('updateJob error:', error);
-    throw new Error(error?.message || 'Failed to update job');
+    const message = error instanceof Error ? error.message : 'Failed to update job';
+    throw new Error(message);
   }
 }
 
@@ -862,8 +863,9 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
             },
           });
         result.jobsImported++;
-      } catch (err: any) {
-        result.errors.push(`Failed to import job ${job.id}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import job ${job.id}: ${message}`);
       }
     }
 
@@ -901,8 +903,9 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
             },
           });
         result.highlightsImported++;
-      } catch (err: any) {
-        result.errors.push(`Failed to import highlight ${highlight.id}: ${err.message}`);
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import highlight ${highlight.id}: ${message}`);
       }
     }
 
@@ -915,11 +918,12 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
     revalidatePath('/export');
 
     return result;
-  } catch (err: any) {
+  } catch (err: unknown) {
     if (err instanceof z.ZodError) {
       result.errors = err.issues.map((e) => `${e.path.join('.')}: ${e.message}`);
     } else {
-      result.errors.push(err.message || 'Unknown error during import');
+      const message = err instanceof Error ? err.message : 'Unknown error during import';
+      result.errors.push(message);
     }
     return result;
   }
