@@ -5,6 +5,12 @@ import { jobs, highlights } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import {
+  generateN8nWorkflow,
+  type N8nWorkflowOptions,
+  type RAGExportData,
+  type RAGExportHighlight,
+} from '@/lib/n8n/workflow';
 
 // ============ TYPES ============
 
@@ -1051,27 +1057,7 @@ export async function searchJobsWithHighlights(
 
 // ============ RAG EXPORT ============
 
-export interface RAGExportHighlight {
-  id: string;
-  title: string;
-  company?: string;
-  period: string;
-  description: string;
-  metrics: string;
-  tags: string[];
-}
-
-export interface RAGExportData {
-  context: string;
-  request_filters: {
-    domains?: string[];
-    skills?: string[];
-    types?: HighlightType[];
-    query?: string;
-    onlyWithMetrics?: boolean;
-  };
-  highlights: RAGExportHighlight[];
-}
+export type { RAGExportData, RAGExportHighlight };
 
 /**
  * Export highlights in RAG format for AI resume generation
@@ -1124,4 +1110,16 @@ export async function exportHighlightsForRAG(
     },
     highlights: formattedHighlights,
   };
+}
+
+/**
+ * Export n8n workflow for resume optimization using OpenRouter
+ */
+export async function exportN8nWorkflow(
+  customContext?: string,
+  filters?: SearchFilters,
+  options?: N8nWorkflowOptions
+) {
+  const data = await exportHighlightsForRAG(customContext, filters);
+  return generateN8nWorkflow(data, options);
 }
