@@ -41,7 +41,6 @@ function UnifiedFeedContent({
   const router = useRouter();
   const { filters, hasActiveFilters } = useFilters();
   const [jobs, setJobs] = useState<JobWithFilteredHighlights[]>(initialJobs);
-  const [isLoading, setIsLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
@@ -54,7 +53,6 @@ function UnifiedFeedContent({
 
   useEffect(() => {
     const fetchData = async () => {
-      setIsLoading(true);
       try {
         const result = await searchJobsAction({
           query: filters.query || undefined,
@@ -66,8 +64,6 @@ function UnifiedFeedContent({
         setJobs(result);
       } catch (error) {
         console.error('Failed to fetch filtered data:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
 

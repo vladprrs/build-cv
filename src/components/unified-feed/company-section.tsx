@@ -6,6 +6,7 @@ import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { EditJobDialog } from '@/components/dialogs/job-dialog';
 import { Building2, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react';
 import type { Job, Highlight } from '@/app/actions';
+import Image from 'next/image';
 
 interface CompanySectionProps {
   job: Job;
@@ -51,9 +52,12 @@ export function CompanySection({
         {/* Logo */}
         <div className="shrink-0">
           {job.logoUrl ? (
-            <img
+            <Image
               src={job.logoUrl}
               alt={job.company}
+              width={40}
+              height={40}
+              unoptimized
               className="h-10 w-10 rounded-lg object-cover ring-1 ring-border/40"
             />
           ) : (
