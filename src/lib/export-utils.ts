@@ -1,4 +1,4 @@
-import { type RAGExportData } from "@/app/actions";
+import { type RAGExportData } from "@/lib/n8n/workflow";
 
 /**
  * Generate Markdown format from RAG export data

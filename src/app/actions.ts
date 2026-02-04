@@ -1057,7 +1057,6 @@ export async function searchJobsWithHighlights(
 
 // ============ RAG EXPORT ============
 
-export type { RAGExportData, RAGExportHighlight };
 
 /**
  * Export highlights in RAG format for AI resume generation

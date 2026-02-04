@@ -12,7 +12,8 @@ import {
 } from '@/components/ui/collapsible';
 import { Copy, Download, Check, ChevronDown, ChevronUp, FileJson, FileText } from 'lucide-react';
 import { useFilters } from '@/contexts/filter-context';
-import { exportHighlightsForRAG, exportN8nWorkflow, type SearchFilters, type RAGExportData } from '@/app/actions';
+import { exportHighlightsForRAG, exportN8nWorkflow, type SearchFilters } from '@/app/actions';
+import { type RAGExportData } from '@/lib/n8n/workflow';
 import { generateMarkdownExport } from '@/lib/export-utils';
 
 interface ExportPanelProps {
