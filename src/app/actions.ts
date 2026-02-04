@@ -2,7 +2,7 @@
 
 import { db } from '@/db';
 import { jobs, highlights } from '@/db/schema';
-import { eq, desc, sql, and } from 'drizzle-orm';
+import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
@@ -647,31 +647,125 @@ export async function getAllSkills(): Promise<string[]> {
 
 // ============ BACKUP & IMPORT ============
 
+export interface BackupJob extends Omit<Job, 'id'> {
+  id: string; // slug
+}
+
+export interface BackupHighlight extends Omit<Highlight, 'id' | 'jobId'> {
+  id: string; // slug
+  jobId?: string | null; // job slug
+}
+
 export interface BackupData {
   version: string;
   exportedAt: string;
-  jobs: Job[];
-  highlights: Highlight[];
+  jobs: BackupJob[];
+  highlights: BackupHighlight[];
 }
 
 /**
  * Export all database data for backup
  */
+const slugRegex = /^[\p{L}\p{N}]+(?:-[\p{L}\p{N}]+)*$/u;
+
+function slugify(value: string, fallback: string) {
+  const slug = value
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || fallback;
+}
+
+function ensureUniqueSlug(base: string, used: Map<string, number>) {
+  const count = used.get(base) ?? 0;
+  if (count === 0) {
+    used.set(base, 1);
+    return base;
+  }
+
+  const next = count + 1;
+  used.set(base, next);
+  return `${base}-${next}`;
+}
+
+function buildJobSlug(job: Job) {
+  return slugify(`${job.company}-${job.role}-${job.startDate}`, 'job');
+}
+
+function buildHighlightSlug(highlight: Highlight, jobSlug?: string | null) {
+  const base = jobSlug
+    ? `${jobSlug}-${highlight.title}-${highlight.startDate}`
+    : `${highlight.title}-${highlight.startDate}`;
+  return slugify(base, 'highlight');
+}
+
+async function uuidFromSlug(slug: string) {
+  const encoder = new TextEncoder();
+  const data = encoder.encode(`build-cv:${slug}`);
+  let hashBytes: Uint8Array;
+
+  if (globalThis.crypto?.subtle) {
+    const hash = await globalThis.crypto.subtle.digest('SHA-1', data);
+    hashBytes = new Uint8Array(hash);
+  } else {
+    const { createHash } = await import('crypto');
+    hashBytes = new Uint8Array(createHash('sha1').update(data).digest());
+  }
+
+  const bytes = hashBytes.slice(0, 16);
+  // Set version (5) and variant bits
+  bytes[6] = (bytes[6] & 0x0f) | 0x50;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 export async function exportDatabase(): Promise<BackupData> {
-  const allJobs = await db.select().from(jobs);
-  const allHighlights = await db.select().from(highlights);
+  const allJobs = await db
+    .select()
+    .from(jobs)
+    .orderBy(asc(jobs.startDate), asc(jobs.company), asc(jobs.role));
+  const allHighlights = await db
+    .select()
+    .from(highlights)
+    .orderBy(asc(highlights.startDate), asc(highlights.title));
+
+  const jobSlugMap = new Map<string, string>();
+  const usedJobSlugs = new Map<string, number>();
+  const exportedJobs: BackupJob[] = allJobs.map((job) => {
+    const baseSlug = buildJobSlug(job);
+    const slug = ensureUniqueSlug(baseSlug, usedJobSlugs);
+    jobSlugMap.set(job.id, slug);
+    return { ...job, id: slug };
+  });
+
+  const usedHighlightSlugs = new Map<string, number>();
+  const exportedHighlights: BackupHighlight[] = allHighlights.map((highlight) => {
+    const jobSlug = highlight.jobId ? jobSlugMap.get(highlight.jobId) : null;
+    const baseSlug = buildHighlightSlug(highlight, jobSlug);
+    const slug = ensureUniqueSlug(baseSlug, usedHighlightSlugs);
+    return {
+      ...highlight,
+      id: slug,
+      jobId: jobSlug ?? null,
+    };
+  });
 
   return {
     version: "1.0",
     exportedAt: new Date().toISOString(),
-    jobs: allJobs,
-    highlights: allHighlights,
+    jobs: exportedJobs,
+    highlights: exportedHighlights,
   };
 }
 
 // Validation schema for backup import
 const backupJobSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().min(1).regex(slugRegex, 'Invalid slug format'),
   company: z.string(),
   role: z.string(),
   startDate: z.string(),
@@ -683,8 +777,8 @@ const backupJobSchema = z.object({
 });
 
 const backupHighlightSchema = z.object({
-  id: z.string().uuid(),
-  jobId: z.string().uuid().nullable().optional(),
+  id: z.string().min(1).regex(slugRegex, 'Invalid slug format'),
+  jobId: z.string().min(1).regex(slugRegex, 'Invalid slug format').nullable().optional(),
   type: z.enum(['achievement', 'project', 'responsibility', 'education']),
   title: z.string(),
   content: z.string(),
@@ -735,12 +829,20 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
     // Validate backup structure
     const validated = backupDataSchema.parse(backupData);
 
+    const jobSlugToId = new Map<string, string>();
+
     // Import jobs first (highlights may reference them)
     for (const job of validated.jobs) {
       try {
+        const jobId = await uuidFromSlug(`job:${job.id}`);
+        jobSlugToId.set(job.id, jobId);
+
         await db
           .insert(jobs)
-          .values(job)
+          .values({
+            ...job,
+            id: jobId,
+          })
           .onConflictDoUpdate({
             target: jobs.id,
             set: {
@@ -762,13 +864,23 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
     // Import highlights
     for (const highlight of validated.highlights) {
       try {
+        const highlightId = await uuidFromSlug(`highlight:${highlight.id}`);
+        const resolvedJobId = highlight.jobId ? jobSlugToId.get(highlight.jobId) ?? null : null;
+        if (highlight.jobId && !resolvedJobId) {
+          result.errors.push(`Missing job for highlight ${highlight.id}: ${highlight.jobId}`);
+        }
+
         await db
           .insert(highlights)
-          .values(highlight)
+          .values({
+            ...highlight,
+            id: highlightId,
+            jobId: resolvedJobId,
+          })
           .onConflictDoUpdate({
             target: highlights.id,
             set: {
-              jobId: highlight.jobId,
+              jobId: resolvedJobId,
               type: highlight.type,
               title: highlight.title,
               content: highlight.content,
@@ -1013,4 +1125,3 @@ export async function exportHighlightsForRAG(
     highlights: formattedHighlights,
   };
 }
-
