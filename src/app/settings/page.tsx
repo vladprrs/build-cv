@@ -28,6 +28,7 @@ import {
 import {
   exportDatabase,
   importDatabase,
+  clearDatabase,
   type BackupData,
   type ImportResult,
 } from '@/app/actions';
@@ -153,13 +154,7 @@ export default function SettingsPage() {
   const handleClearData = async () => {
     setIsClearing(true);
     try {
-      // Import empty data to clear
-      await importDatabase({
-        version: '1.0',
-        exportedAt: new Date().toISOString(),
-        jobs: [],
-        highlights: [],
-      });
+      await clearDatabase();
       router.push('/');
       router.refresh();
     } catch (err) {

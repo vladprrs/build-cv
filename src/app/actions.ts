@@ -807,6 +807,33 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
   }
 }
 
+/**
+ * Clear all data (jobs and highlights)
+ */
+export async function clearDatabase(): Promise<{ jobsDeleted: number; highlightsDeleted: number }> {
+  const highlightCountResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(highlights);
+  const jobCountResult = await db
+    .select({ count: sql<number>`count(*)` })
+    .from(jobs);
+
+  const highlightsDeleted = Number(highlightCountResult[0]?.count ?? 0);
+  const jobsDeleted = Number(jobCountResult[0]?.count ?? 0);
+
+  // Delete highlights first to avoid FK issues
+  await db.delete(highlights);
+  await db.delete(jobs);
+
+  revalidatePath('/');
+  revalidatePath('/jobs');
+  revalidatePath('/highlights');
+  revalidatePath('/export');
+  revalidatePath('/settings');
+
+  return { jobsDeleted, highlightsDeleted };
+}
+
 // ============ UNIFIED FEED ============
 
 export interface JobWithFilteredHighlights extends Job {
@@ -986,5 +1013,4 @@ export async function exportHighlightsForRAG(
     highlights: formattedHighlights,
   };
 }
-
 
