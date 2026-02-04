@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,15 +15,11 @@ import { generateMarkdownExport } from '@/lib/export-utils';
 interface ResultsHeaderProps {
   totalHighlights: number;
   filteredCount: number;
-  onExportPanelToggle?: () => void;
-  showExportPanel?: boolean;
 }
 
 export function ResultsHeader({
   totalHighlights,
   filteredCount,
-  onExportPanelToggle,
-  showExportPanel,
 }: ResultsHeaderProps) {
   const { filters, hasActiveFilters } = useFilters();
   const [copied, setCopied] = useState(false);
@@ -116,71 +111,62 @@ export function ResultsHeader({
   };
 
   return (
-    <div className="flex items-center justify-between py-2 border-b">
-      <p className="text-sm text-muted-foreground">
+    <div className="flex items-center justify-between py-3 border-b border-border/20">
+      <p className="text-xs text-muted-foreground">
         {hasActiveFilters ? (
           <>
-            <span className="font-medium text-foreground">{filteredCount}</span>
-            {' '}of {totalHighlights} highlights
+            <span className="text-foreground">{filteredCount}</span> of {totalHighlights}
           </>
         ) : (
-          <>
-            <span className="font-medium text-foreground">{totalHighlights}</span>
-            {' '}highlights
-          </>
+          <>{totalHighlights} highlights</>
         )}
       </p>
 
-      <div className="flex items-center gap-2">
-        {/* Copy JSON Button - always visible when there are highlights */}
-        {filteredCount > 0 && (
-          <>
-            <Button
-              variant="outline"
-              size="sm"
-              className="h-8 gap-1.5"
-              onClick={handleCopyJson}
-              disabled={copying}
-            >
-              {copied ? (
-                <>
-                  <Check className="h-3.5 w-3.5" />
-                  Copied!
-                </>
-              ) : (
-                <>
-                  <Copy className="h-3.5 w-3.5" />
-                  Copy JSON
-                </>
-              )}
-            </Button>
+      {filteredCount > 0 && (
+        <div className="flex items-center gap-1">
+          <button
+            data-copy-json
+            onClick={handleCopyJson}
+            disabled={copying}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-md transition-colors"
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3" />
+                Copied
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" />
+                Copy JSON
+              </>
+            )}
+          </button>
 
-            {/* Export Dropdown */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="h-8 px-2">
-                  <Download className="h-3.5 w-3.5" />
-                  <ChevronDown className="h-3 w-3 ml-1" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={handleCopyMarkdown}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Copy as Markdown
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadJson}>
-                  <FileJson className="h-4 w-4 mr-2" />
-                  Download JSON
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={handleDownloadMarkdown}>
-                  <FileText className="h-4 w-4 mr-2" />
-                  Download Markdown
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </>
-        )}
-      </div>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="inline-flex items-center gap-1 px-2 py-1 text-xs text-muted-foreground hover:text-foreground border border-border/40 rounded-md transition-colors">
+                <Download className="h-3 w-3" />
+                <ChevronDown className="h-3 w-3 opacity-50" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-40">
+              <DropdownMenuItem onClick={handleCopyMarkdown} className="text-xs">
+                <FileText className="h-3.5 w-3.5 mr-2" />
+                Copy Markdown
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadJson} className="text-xs">
+                <FileJson className="h-3.5 w-3.5 mr-2" />
+                Download JSON
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleDownloadMarkdown} className="text-xs">
+                <FileText className="h-3.5 w-3.5 mr-2" />
+                Download MD
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      )}
     </div>
   );
 }

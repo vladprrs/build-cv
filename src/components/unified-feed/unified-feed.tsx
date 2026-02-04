@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { SearchBar } from './search-bar';
 import { FilterBar } from './filter-bar';
 import { ResultsHeader } from './results-header';
@@ -12,7 +10,7 @@ import { ExportPanel } from './export-panel';
 import { FilterProvider, useFilters } from '@/contexts/filter-context';
 import { CreateJobDialog } from '@/components/dialogs/job-dialog';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
-import { Settings, Plus, Briefcase } from 'lucide-react';
+import { Settings, Plus } from 'lucide-react';
 import Link from 'next/link';
 import type { Job, Highlight, HighlightType } from '@/app/actions';
 
@@ -46,17 +44,14 @@ function UnifiedFeedContent({
   const [isLoading, setIsLoading] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
 
-  // Dialog state for keyboard shortcuts
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
   const [showNewJobDialog, setShowNewJobDialog] = useState(false);
   const [showExportPanel, setShowExportPanel] = useState(false);
 
-  // Calculate totals
   const totalHighlights = jobs.reduce((sum, job) => sum + job.allHighlightsCount, 0);
   const filteredHighlights = jobs.reduce((sum, job) => sum + job.highlights.length, 0);
   const totalPositions = jobs.length;
 
-  // Fetch filtered data when filters change
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
@@ -79,45 +74,37 @@ function UnifiedFeedContent({
     fetchData();
   }, [filters, searchJobsAction]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Skip if in input/textarea (except for Escape)
       const isInput = ['INPUT', 'TEXTAREA'].includes(
         (e.target as HTMLElement).tagName
       );
 
-      // Cmd/Ctrl + K - Focus search
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         searchInputRef.current?.focus();
         return;
       }
 
-      // Cmd/Ctrl + Shift + N - New company
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'N') {
         e.preventDefault();
         setShowNewJobDialog(true);
         return;
       }
 
-      // Cmd/Ctrl + N - New highlight (only when not in input)
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'n' && !isInput) {
         e.preventDefault();
         setShowNewHighlightDialog(true);
         return;
       }
 
-      // Cmd/Ctrl + Shift + C - Copy JSON
       if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'C') {
         e.preventDefault();
-        // Trigger copy JSON - handled by ResultsHeader
         const copyButton = document.querySelector('[data-copy-json]') as HTMLButtonElement;
         copyButton?.click();
         return;
       }
 
-      // Escape - Clear search if focused
       if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
         e.preventDefault();
         searchInputRef.current?.blur();
@@ -135,30 +122,31 @@ function UnifiedFeedContent({
 
   return (
     <div className="min-h-screen bg-background">
-      {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-10">
-        <div className="container mx-auto py-4 px-4 max-w-4xl">
-          <div className="flex items-center justify-between mb-4">
+      {/* Minimal Header */}
+      <header className="sticky top-0 z-10 bg-background/80 backdrop-blur-sm">
+        <div className="mx-auto max-w-3xl px-4 sm:px-6">
+          {/* Top Bar */}
+          <div className="flex items-center justify-between py-6 border-b border-border/40">
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Build CV</h1>
+              <h1 className="text-lg font-semibold tracking-tight">Build CV</h1>
               <p className="text-sm text-muted-foreground">
-                {totalPositions} {totalPositions === 1 ? 'position' : 'positions'} •{' '}
-                {totalHighlights} highlight{totalHighlights !== 1 ? 's' : ''}
+                {totalPositions} positions · {totalHighlights} highlights
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" asChild>
-                <Link href="/settings">
-                  <Settings className="h-4 w-4" />
-                </Link>
-              </Button>
+            <div className="flex items-center gap-3">
+              <Link
+                href="/settings"
+                className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Settings className="h-5 w-5" />
+              </Link>
               <CreateJobDialog
                 onSuccess={handleUpdate}
                 trigger={
-                  <Button size="sm">
-                    <Plus className="h-4 w-4 mr-1.5" />
+                  <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors">
+                    <Plus className="h-4 w-4" />
                     Add Job
-                  </Button>
+                  </button>
                 }
                 open={showNewJobDialog}
                 onOpenChange={setShowNewJobDialog}
@@ -166,61 +154,49 @@ function UnifiedFeedContent({
             </div>
           </div>
 
-          {/* Search */}
-          <div className="mb-3">
+          {/* Search & Filters */}
+          <div className="py-6 space-y-4">
             <SearchBar searchInputRef={searchInputRef} />
-          </div>
-
-          {/* Filters */}
-          <FilterBar domains={domains} skills={skills} />
-
-          {/* Export Panel */}
-          <div className="mt-3">
+            <FilterBar domains={domains} skills={skills} />
             <ExportPanel isOpen={showExportPanel} onOpenChange={setShowExportPanel} />
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto py-6 px-4 max-w-4xl">
-        {/* Results Header */}
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 pb-24">
         <ResultsHeader
           totalHighlights={totalHighlights}
           filteredCount={filteredHighlights}
         />
 
         {/* Jobs Feed */}
-        <div className="space-y-4 mt-4">
+        <div className="mt-6 space-y-6">
           {jobs.length === 0 ? (
-            <Card className="p-12 text-center">
-              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Briefcase className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium">Your career timeline is empty</h3>
-              <p className="text-muted-foreground mt-2 mb-6 max-w-sm mx-auto">
-                Add your first job to start building your professional timeline with
-                achievements and projects.
+            <div className="py-24 text-center">
+              <p className="text-muted-foreground mb-6">
+                Your career timeline is empty.
+                <br />
+                Add your first job to get started.
               </p>
               <CreateJobDialog
                 onSuccess={handleUpdate}
                 trigger={
-                  <Button>
-                    <Plus className="h-4 w-4 mr-2" />
+                  <button className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors">
+                    <Plus className="h-4 w-4" />
                     Add Your First Job
-                  </Button>
+                  </button>
                 }
               />
-            </Card>
+            </div>
           ) : hasActiveFilters && filteredHighlights === 0 ? (
-            <Card className="p-12 text-center">
-              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Briefcase className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-lg font-medium">No highlights match your filters</h3>
-              <p className="text-muted-foreground mt-2 mb-6 max-w-sm mx-auto">
-                Try adjusting your search or filters to find what you&apos;re looking for.
+            <div className="py-24 text-center">
+              <p className="text-muted-foreground">
+                No highlights match your filters.
+                <br />
+                Try adjusting your search criteria.
               </p>
-            </Card>
+            </div>
           ) : (
             jobs.map((job) => (
               <CompanySection
@@ -234,21 +210,14 @@ function UnifiedFeedContent({
           )}
         </div>
 
-        {/* Keyboard shortcuts hint */}
-        <div className="mt-8 text-center text-xs text-muted-foreground">
-          <span className="hidden sm:inline">
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘K</kbd> search
-            {' • '}
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘N</kbd> new highlight
-            {' • '}
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘⇧N</kbd> new job
-            {' • '}
-            <kbd className="px-1.5 py-0.5 bg-muted rounded text-[10px]">⌘⇧C</kbd> copy JSON
-          </span>
+        {/* Keyboard hints */}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 hidden sm:flex items-center gap-4 text-xs text-muted-foreground/60">
+          <span><kbd className="px-1.5 py-0.5 bg-muted/50 rounded text-[10px] font-mono">⌘K</kbd> search</span>
+          <span><kbd className="px-1.5 py-0.5 bg-muted/50 rounded text-[10px] font-mono">⌘N</kbd> highlight</span>
+          <span><kbd className="px-1.5 py-0.5 bg-muted/50 rounded text-[10px] font-mono">⌘⇧N</kbd> job</span>
         </div>
       </main>
 
-      {/* Hidden dialog triggers for keyboard shortcuts */}
       <CreateHighlightDialog
         onSuccess={handleUpdate}
         trigger={<span className="hidden" />}

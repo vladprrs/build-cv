@@ -4,7 +4,6 @@
 
 **Design System:** [Tailark Veil](https://tailark.com/veil) — minimalist marketing blocks for shadcn/ui
 
----
 
 ## 1. Философия дизайна
 
