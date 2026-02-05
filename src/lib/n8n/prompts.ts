@@ -262,3 +262,112 @@ Usage:
 Commands:
 /start - this message
 /help - this message`;
+
+// =============================================================================
+// AGENT-BASED WORKFLOW PROMPTS
+// =============================================================================
+
+export const AGENT_SYSTEM_PROMPT = `You are a professional resume optimization assistant. Your job is to analyze job postings and create tailored, high-quality resumes using the candidate's real experience highlights.
+
+## Your Process:
+1. **Parse the Job Posting** - Use the parse_job_posting tool to extract requirements, keywords, and company info
+2. **Select Relevant Evidence** - Use the select_evidence tool to find the best matching highlights from the candidate's experience
+3. **Generate the Resume** - Use the generate_resume tool to create an optimized resume
+4. **Validate Quality** (if enabled) - Use the validate_resume tool to check for issues
+   - If validation fails, regenerate with the feedback (max 2 attempts)
+5. **Return the Final Resume** - Provide the completed resume in Markdown format
+
+## Critical Rules:
+- NEVER fabricate credentials, achievements, job titles, companies, or degrees
+- NEVER invent metrics or numbers not present in the original highlights
+- Focus on rephrasing, restructuring, and emphasizing existing content
+- You CAN infer related technologies from context (e.g., Python user likely knows pip)
+- You CAN add general/umbrella terms inferable from specific skills (e.g., "NLP" for text processing work)
+- Avoid AI-generated text markers: em dashes, "delve", excessive buzzwords without specifics
+
+## Output Format:
+Always return the final resume as clean Markdown text, ready for the user.`;
+
+export const TOOL_PARSE_JOB_DESCRIPTION = `Parses a job posting text and extracts structured information including job title, company name, requirements list, technical keywords, and role description. Returns JSON with fields: title, company, requirements[], keywords[], description.`;
+
+export const TOOL_SELECT_EVIDENCE_DESCRIPTION = `Analyzes the parsed job requirements against available candidate highlights and selects the most relevant ones. Returns JSON with: selected_highlight_ids[], evidence_map (mapping requirements to highlights), matched_skills[], missing_requirements[].`;
+
+export const TOOL_GENERATE_RESUME_DESCRIPTION = `Generates an optimized resume in Markdown format using the selected highlights tailored to the job posting. Can optionally include a cover letter. Accepts feedback from previous validation attempts for improvement.`;
+
+export const TOOL_VALIDATE_RESUME_DESCRIPTION = `Validates the generated resume for quality issues including hallucinations (fabricated content) and AI-generated text markers. Returns: passed (boolean), hallucination_score, ai_probability, concerns[], feedback for retry.`;
+
+// Tool input schemas as JSON strings for n8n toolCode nodes
+export const TOOL_PARSE_JOB_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    job_text: {
+      type: "string",
+      description: "The full text of the job posting to parse"
+    }
+  },
+  required: ["job_text"]
+});
+
+export const TOOL_SELECT_EVIDENCE_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    job_title: {
+      type: "string",
+      description: "The job title from parsed job posting"
+    },
+    job_company: {
+      type: "string",
+      description: "The company name"
+    },
+    requirements: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of job requirements"
+    },
+    keywords: {
+      type: "array",
+      items: { type: "string" },
+      description: "Technical keywords from the job"
+    }
+  },
+  required: ["job_title", "requirements", "keywords"]
+});
+
+export const TOOL_GENERATE_RESUME_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    selected_highlight_ids: {
+      type: "array",
+      items: { type: "string" },
+      description: "IDs of highlights to include in the resume"
+    },
+    job_title: {
+      type: "string",
+      description: "Target job title"
+    },
+    job_company: {
+      type: "string",
+      description: "Target company name"
+    },
+    include_cover_letter: {
+      type: "boolean",
+      description: "Whether to include a cover letter"
+    },
+    feedback: {
+      type: "string",
+      description: "Optional feedback from previous validation to address"
+    }
+  },
+  required: ["selected_highlight_ids", "job_title"]
+});
+
+export const TOOL_VALIDATE_RESUME_SCHEMA = JSON.stringify({
+  type: "object",
+  properties: {
+    resume_text: {
+      type: "string",
+      description: "The generated resume text to validate"
+    }
+  },
+  required: ["resume_text"]
+});

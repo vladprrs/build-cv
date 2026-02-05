@@ -19,10 +19,10 @@ import {
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
-import { Copy, Download, Check, ChevronDown, ChevronUp, FileJson, FileText, Bot, Webhook } from 'lucide-react';
+import { Copy, Download, Check, ChevronDown, ChevronUp, FileJson, FileText, Bot, Webhook, Cpu, Workflow } from 'lucide-react';
 import { useFilters } from '@/contexts/filter-context';
 import { exportHighlightsForRAG, exportN8nWorkflow, type SearchFilters } from '@/app/actions';
-import { type RAGExportData, type TriggerType } from '@/lib/n8n/workflow';
+import { type RAGExportData, type TriggerType, type WorkflowArchitecture } from '@/lib/n8n/workflow';
 import { generateMarkdownExport } from '@/lib/export-utils';
 
 interface ExportPanelProps {
@@ -43,6 +43,7 @@ export function ExportPanel({ isOpen, onOpenChange }: ExportPanelProps) {
   const [triggerType, setTriggerType] = useState<TriggerType>('telegram');
   const [includeCoverLetter, setIncludeCoverLetter] = useState(false);
   const [enableValidation, setEnableValidation] = useState(true);
+  const [architecture, setArchitecture] = useState<WorkflowArchitecture>('http-chain');
 
   const searchFilters = useMemo<SearchFilters>(() => ({
     query: filters.query || undefined,
@@ -83,6 +84,7 @@ export function ExportPanel({ isOpen, onOpenChange }: ExportPanelProps) {
             triggerType,
             includeCoverLetter,
             enableValidation,
+            architecture,
           }
         );
         if (!cancelled) {
@@ -99,7 +101,7 @@ export function ExportPanel({ isOpen, onOpenChange }: ExportPanelProps) {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, customContext, isOpen, searchFilters, triggerType, includeCoverLetter, enableValidation]);
+  }, [activeTab, customContext, isOpen, searchFilters, triggerType, includeCoverLetter, enableValidation, architecture]);
 
   const jsonContent = exportData ? JSON.stringify(exportData, null, 2) : '';
   const markdownContent = exportData ? generateMarkdownExport(exportData) : '';
@@ -230,6 +232,30 @@ export function ExportPanel({ isOpen, onOpenChange }: ExportPanelProps) {
                 <div className="p-3 bg-muted/50 rounded-md space-y-3">
                   <div className="text-xs font-medium text-muted-foreground mb-2">Workflow Options</div>
 
+                  {/* Architecture */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs">Architecture</Label>
+                    <Select value={architecture} onValueChange={(v) => setArchitecture(v as WorkflowArchitecture)}>
+                      <SelectTrigger className="w-[140px] h-7 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="http-chain">
+                          <span className="flex items-center gap-1.5">
+                            <Workflow className="h-3 w-3" />
+                            HTTP Chain
+                          </span>
+                        </SelectItem>
+                        <SelectItem value="agent-based">
+                          <span className="flex items-center gap-1.5">
+                            <Cpu className="h-3 w-3" />
+                            AI Agent
+                          </span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
                   {/* Trigger Type */}
                   <div className="flex items-center justify-between">
                     <Label className="text-xs">Trigger</Label>
@@ -297,9 +323,18 @@ export function ExportPanel({ isOpen, onOpenChange }: ExportPanelProps) {
                           <li>Add Telegram credentials in n8n</li>
                         </>
                       )}
-                      <li>Set OPENROUTER_API_KEY in n8n environment</li>
+                      {architecture === 'agent-based' ? (
+                        <li>Add OpenRouter API credentials in n8n</li>
+                      ) : (
+                        <li>Set OPENROUTER_API_KEY in n8n environment</li>
+                      )}
                       <li>Activate the workflow</li>
                     </ol>
+                    {architecture === 'agent-based' && (
+                      <p className="mt-2 text-xs italic">
+                        AI Agent architecture uses fewer nodes with dynamic tool calling.
+                      </p>
+                    )}
                   </div>
                 )}
               </TabsContent>

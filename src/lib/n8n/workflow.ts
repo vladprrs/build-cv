@@ -10,75 +10,34 @@ import {
   AI_GENERATED_SYSTEM_PROMPT,
   SELECT_EVIDENCE_SYSTEM_PROMPT,
   TELEGRAM_HELP_MESSAGE_RU,
+  AGENT_SYSTEM_PROMPT,
+  TOOL_PARSE_JOB_DESCRIPTION,
+  TOOL_SELECT_EVIDENCE_DESCRIPTION,
+  TOOL_GENERATE_RESUME_DESCRIPTION,
+  TOOL_VALIDATE_RESUME_DESCRIPTION,
+  TOOL_PARSE_JOB_SCHEMA,
+  TOOL_SELECT_EVIDENCE_SCHEMA,
+  TOOL_GENERATE_RESUME_SCHEMA,
+  TOOL_VALIDATE_RESUME_SCHEMA,
 } from "./prompts";
+import type {
+  N8nWorkflowOptions,
+  RAGExportData,
+  N8nNode,
+  N8nWorkflow,
+} from "./types";
 
-// =============================================================================
-// TYPES
-// =============================================================================
-
-export type N8nLlmProvider = "openrouter";
-export type TriggerType = "webhook" | "telegram";
-export type ValidationMode = "strict" | "lenient";
-
-export interface N8nWorkflowOptions {
-  provider?: N8nLlmProvider;
-  model?: string;
-  temperature?: number;
-  includeCoverLetter?: boolean;
-  highlightsLimit?: number;
-  outputFormat?: "markdown";
-  workflowName?: string;
-  webhookPath?: string;
-  // New options
-  triggerType?: TriggerType;
-  enableValidation?: boolean;
-  validationMode?: ValidationMode;
-}
-
-export interface RAGExportHighlight {
-  id: string;
-  title: string;
-  company?: string;
-  period: string;
-  description: string;
-  metrics: string;
-  tags: string[];
-}
-
-export interface RAGExportData {
-  context: string;
-  request_filters: {
-    domains?: string[];
-    skills?: string[];
-    types?: string[];
-    query?: string;
-    onlyWithMetrics?: boolean;
-  };
-  highlights: RAGExportHighlight[];
-}
-
-interface N8nNode {
-  id: string;
-  name: string;
-  type: string;
-  typeVersion: number;
-  position: [number, number];
-  parameters: Record<string, unknown>;
-  credentials?: Record<string, { id: string; name: string }>;
-}
-
-export interface N8nWorkflow {
-  name: string;
-  nodes: N8nNode[];
-  connections: Record<
-    string,
-    {
-      main: Array<Array<{ node: string; type: string; index: number }>>;
-    }
-  >;
-  settings?: Record<string, unknown>;
-  meta?: Record<string, unknown>;
-}
+// Re-export types for consumers
+export type {
+  N8nLlmProvider,
+  TriggerType,
+  ValidationMode,
+  WorkflowArchitecture,
+  N8nWorkflowOptions,
+  RAGExportHighlight,
+  RAGExportData,
+  N8nWorkflow,
+} from "./types";
 
 // =============================================================================
 // DEFAULTS
@@ -96,6 +55,9 @@ const DEFAULT_OPTIONS = {
   triggerType: "telegram" as const,
   enableValidation: true,
   validationMode: "strict" as const,
+  architecture: "http-chain" as const,
+  enableMemory: true,
+  maxAgentIterations: 10,
 };
 
 const POSITION_Y = 320;
@@ -299,7 +261,9 @@ function buildRouteMessageCode(): string {
 const chatId = $json.message?.chat?.id;
 const isCommand = text.startsWith('/');
 const isStartOrHelp = text === '/start' || text === '/help';
-const isJobDescription = !isCommand && text.length > 50;
+const isEmpty = !text || text.trim().length === 0;
+const isTooShort = !isCommand && text.length > 0 && text.length < 50;
+const isJobDescription = !isCommand && !isEmpty && text.length >= 50;
 
 return [{
   json: {
@@ -307,9 +271,684 @@ return [{
     messageText: text,
     isCommand,
     isStartOrHelp,
+    isEmpty,
+    isTooShort,
     isJobDescription
   }
 }];`;
+}
+
+// =============================================================================
+// AGENT NODE BUILDERS
+// =============================================================================
+
+function buildAgentNode(
+  id: string,
+  name: string,
+  position: [number, number],
+  systemMessage: string,
+  promptExpression: string,
+  maxIterations: number = 10
+): N8nNode {
+  return {
+    id,
+    name,
+    type: "@n8n/n8n-nodes-langchain.agent",
+    typeVersion: 3.1,
+    position,
+    parameters: {
+      promptType: "define",
+      text: promptExpression,
+      hasOutputParser: false,
+      options: {
+        systemMessage,
+        maxIterations,
+        returnIntermediateSteps: false,
+      },
+    },
+  };
+}
+
+function buildOpenRouterChatModel(
+  id: string,
+  name: string,
+  position: [number, number],
+  model: string,
+  temperature: number
+): N8nNode {
+  return {
+    id,
+    name,
+    type: "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+    typeVersion: 1,
+    position,
+    parameters: {
+      model,
+      options: {
+        temperature,
+        timeout: 120000,
+        maxRetries: 2,
+      },
+    },
+    credentials: {
+      openRouterApi: {
+        id: "openrouter_credential",
+        name: "OpenRouter API",
+      },
+    },
+  };
+}
+
+function buildMemoryNode(
+  id: string,
+  name: string,
+  position: [number, number],
+  sessionKeyExpression: string
+): N8nNode {
+  return {
+    id,
+    name,
+    type: "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+    typeVersion: 1.3,
+    position,
+    parameters: {
+      sessionIdType: "customKey",
+      sessionKey: sessionKeyExpression,
+      contextWindowLength: 10,
+    },
+  };
+}
+
+function buildCodeTool(
+  id: string,
+  name: string,
+  position: [number, number],
+  toolName: string,
+  description: string,
+  jsCode: string,
+  inputSchema?: string
+): N8nNode {
+  const node: N8nNode = {
+    id,
+    name,
+    type: "@n8n/n8n-nodes-langchain.toolCode",
+    typeVersion: 1.3,
+    position,
+    parameters: {
+      name: toolName,
+      description,
+      language: "javaScript",
+      jsCode,
+      specifyInputSchema: !!inputSchema,
+    },
+  };
+
+  if (inputSchema) {
+    node.parameters.schemaType = "manual";
+    node.parameters.inputSchema = inputSchema;
+  }
+
+  return node;
+}
+
+// =============================================================================
+// RESOLVED OPTIONS TYPE
+// =============================================================================
+
+interface ResolvedOptions {
+  provider: "openrouter";
+  model: string;
+  temperature: number;
+  includeCoverLetter: boolean;
+  highlightsLimit: number;
+  outputFormat: "markdown";
+  workflowName: string;
+  webhookPath: string;
+  triggerType: "webhook" | "telegram";
+  enableValidation: boolean;
+  validationMode: "strict" | "lenient";
+  architecture: "http-chain" | "agent-based";
+  enableMemory: boolean;
+  maxAgentIterations: number;
+}
+
+// =============================================================================
+// AGENT-BASED WORKFLOW GENERATOR
+// =============================================================================
+
+function generateAgentBasedWorkflow(
+  rag: RAGExportData,
+  opts: ResolvedOptions
+): N8nWorkflow {
+  const trimmedHighlights = rag.highlights.slice(0, opts.highlightsLimit);
+  const ragPayload = {
+    ...rag,
+    highlights: trimmedHighlights,
+    exportedAt: new Date().toISOString(),
+  };
+  const ragLiteral = JSON.stringify(ragPayload);
+
+  const nodes: N8nNode[] = [];
+  type ConnectionMap = Record<
+    string,
+    {
+      main?: Array<Array<{ node: string; type: string; index: number }>>;
+      ai_languageModel?: Array<Array<{ node: string; type: string; index: number }>>;
+      ai_memory?: Array<Array<{ node: string; type: string; index: number }>>;
+      ai_tool?: Array<Array<{ node: string; type: string; index: number }>>;
+    }
+  >;
+  const connections: ConnectionMap = {};
+  let nodeId = 1;
+  let posX = 0;
+
+  const MAIN_Y = 320;
+  const BRANCH_Y = 160;
+  const AI_Y = 480;
+
+  // Telegram Trigger
+  if (opts.triggerType === "telegram") {
+    nodes.push(buildTelegramTriggerNode(String(nodeId++), [posX, MAIN_Y]));
+    posX += POSITION_STEP_X;
+
+    nodes.push(
+      buildFunctionNode(
+        String(nodeId++),
+        "Route Message",
+        [posX, MAIN_Y],
+        buildRouteMessageCode()
+      )
+    );
+    posX += POSITION_STEP_X;
+
+    nodes.push(
+      buildIfNode(String(nodeId++), "Is Command", [posX, MAIN_Y], "={{$json.isStartOrHelp}}")
+    );
+
+    const helpMessage = escapeForSingleQuotes(TELEGRAM_HELP_MESSAGE_RU);
+    nodes.push(
+      buildTelegramSendNode(
+        String(nodeId++),
+        "Send Help",
+        [posX + POSITION_STEP_X, BRANCH_Y],
+        "={{$('Route Message').item.json.chatId}}",
+        `='${helpMessage}'`
+      )
+    );
+    posX += POSITION_STEP_X;
+
+    nodes.push(
+      buildIfNode(
+        String(nodeId++),
+        "Is Valid Input",
+        [posX + POSITION_STEP_X, MAIN_Y],
+        "={{$json.isJobDescription}}"
+      )
+    );
+
+    const errorMessage = escapeForSingleQuotes(
+      "⚠️ Пожалуйста, отправьте полный текст вакансии (минимум 50 символов).\n\nОтправьте /help для получения инструкций."
+    );
+    nodes.push(
+      buildTelegramSendNode(
+        String(nodeId++),
+        "Send Invalid Input Error",
+        [posX + POSITION_STEP_X * 2, BRANCH_Y],
+        "={{$('Route Message').item.json.chatId}}",
+        `='${errorMessage}'`
+      )
+    );
+
+    connections["Telegram Trigger"] = {
+      main: [[{ node: "Route Message", type: "main", index: 0 }]],
+    };
+    connections["Route Message"] = {
+      main: [[{ node: "Is Command", type: "main", index: 0 }]],
+    };
+    connections["Is Command"] = {
+      main: [
+        [{ node: "Send Help", type: "main", index: 0 }],
+        [{ node: "Is Valid Input", type: "main", index: 0 }],
+      ],
+    };
+    connections["Is Valid Input"] = {
+      main: [
+        [{ node: "Prepare Agent Input", type: "main", index: 0 }],
+        [{ node: "Send Invalid Input Error", type: "main", index: 0 }],
+      ],
+    };
+  } else {
+    nodes.push({
+      id: String(nodeId++),
+      name: "Webhook",
+      type: "n8n-nodes-base.webhook",
+      typeVersion: 2,
+      position: [posX, MAIN_Y],
+      parameters: {
+        httpMethod: "POST",
+        path: opts.webhookPath,
+        responseMode: "responseNode",
+        options: {},
+      },
+    });
+    posX += POSITION_STEP_X;
+
+    connections["Webhook"] = {
+      main: [[{ node: "Prepare Agent Input", type: "main", index: 0 }]],
+    };
+  }
+
+  posX += POSITION_STEP_X * 2;
+
+  const prepareInputCode =
+    opts.triggerType === "telegram"
+      ? `const rag = ${ragLiteral};
+const vacancyText = $('Route Message').item.json.messageText ?? '';
+const chatId = $('Route Message').item.json.chatId ?? '';
+return [{
+  json: {
+    vacancy_text: vacancyText,
+    chat_id: chatId,
+    session_id: 'telegram_' + chatId,
+    rag_export: rag,
+    agent_prompt: 'Please optimize my resume for this job posting:\\n\\n' + vacancyText
+  }
+}];`
+      : `const rag = ${ragLiteral};
+const vacancyText = $json.body?.vacancy_text ?? $json.vacancy_text ?? '';
+const requestId = $json.body?.request_id ?? $json.request_id ?? crypto.randomUUID();
+return [{
+  json: {
+    vacancy_text: vacancyText,
+    request_id: requestId,
+    session_id: 'webhook_' + requestId,
+    rag_export: rag,
+    agent_prompt: 'Please optimize my resume for this job posting:\\n\\n' + vacancyText
+  }
+}];`;
+
+  nodes.push(
+    buildFunctionNode(String(nodeId++), "Prepare Agent Input", [posX, MAIN_Y], prepareInputCode)
+  );
+  posX += POSITION_STEP_X;
+
+  const agentNodeName = "Resume Agent";
+  const agentPosX = posX;
+
+  const validationContext = opts.enableValidation
+    ? `\n\nValidation is ENABLED in ${opts.validationMode} mode. After generating the resume, use the validate_resume tool to check quality. If validation fails, regenerate with the feedback.`
+    : "\n\nValidation is DISABLED. Generate the resume without validation.";
+
+  const coverLetterContext = opts.includeCoverLetter
+    ? "\n\nInclude a cover letter after the resume."
+    : "\n\nDo NOT include a cover letter.";
+
+  const fullSystemPrompt = AGENT_SYSTEM_PROMPT + validationContext + coverLetterContext;
+
+  nodes.push(
+    buildAgentNode(
+      String(nodeId++),
+      agentNodeName,
+      [posX, MAIN_Y],
+      fullSystemPrompt,
+      "={{$json.agent_prompt}}",
+      opts.maxAgentIterations
+    )
+  );
+  posX += POSITION_STEP_X;
+
+  connections["Prepare Agent Input"] = {
+    main: [[{ node: agentNodeName, type: "main", index: 0 }]],
+  };
+
+  const chatModelName = "OpenRouter Model";
+  nodes.push(
+    buildOpenRouterChatModel(
+      String(nodeId++),
+      chatModelName,
+      [agentPosX - 100, AI_Y],
+      opts.model,
+      opts.temperature
+    )
+  );
+
+  connections[chatModelName] = {
+    ai_languageModel: [[{ node: agentNodeName, type: "ai_languageModel", index: 0 }]],
+  };
+
+  if (opts.enableMemory) {
+    const memoryNodeName = "Simple Memory";
+    nodes.push(
+      buildMemoryNode(
+        String(nodeId++),
+        memoryNodeName,
+        [agentPosX + 100, AI_Y],
+        "={{$json.session_id}}"
+      )
+    );
+
+    connections[memoryNodeName] = {
+      ai_memory: [[{ node: agentNodeName, type: "ai_memory", index: 0 }]],
+    };
+  }
+
+  const toolStartX = agentPosX - 200;
+  const toolY = AI_Y + 160;
+  let toolX = toolStartX;
+
+  // Tool 1: Parse Job Posting
+  const parseJobToolCode = `const jobText = job_text;
+const response = await $helpers.httpRequest({
+  method: 'POST',
+  url: 'https://openrouter.ai/api/v1/chat/completions',
+  headers: {
+    'Authorization': 'Bearer ' + $env.OPENROUTER_API_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: {
+    model: '${opts.model}',
+    temperature: ${opts.temperature},
+    messages: [
+      { role: 'system', content: ${JSON.stringify(JOB_PARSER_SYSTEM_PROMPT)} },
+      { role: 'user', content: 'Parse this job posting:\\n\\n' + jobText }
+    ]
+  }
+});
+const content = response.choices?.[0]?.message?.content ?? '{}';
+try {
+  const cleaned = content.replace(/\\\`\\\`\\\`json\\\\n?|\\\\n?\\\`\\\`\\\`/g, '').trim();
+  return JSON.parse(cleaned);
+} catch (e) {
+  return { title: 'Unknown', company: 'Unknown', requirements: [], keywords: [], description: jobText.slice(0, 200) };
+}`;
+
+  nodes.push(
+    buildCodeTool(
+      String(nodeId++),
+      "Parse Job Tool",
+      [toolX, toolY],
+      "parse_job_posting",
+      TOOL_PARSE_JOB_DESCRIPTION,
+      parseJobToolCode,
+      TOOL_PARSE_JOB_SCHEMA
+    )
+  );
+
+  connections["Parse Job Tool"] = {
+    ai_tool: [[{ node: agentNodeName, type: "ai_tool", index: 0 }]],
+  };
+
+  toolX += POSITION_STEP_X;
+
+  // Tool 2: Select Evidence
+  const selectEvidenceToolCode = `const rag = $('Prepare Agent Input').item.json.rag_export;
+const highlights = rag.highlights || [];
+const keywordList = [...(requirements || []), ...(keywords || [])].map(k => String(k).toLowerCase());
+const keywordSet = new Set(keywordList);
+const filtered = highlights.filter(h => {
+  const tags = Array.isArray(h.tags) ? h.tags : [];
+  const tagHit = tags.some(t => keywordSet.has(String(t).toLowerCase()));
+  const text = (String(h.title || '') + ' ' + String(h.description || '')).toLowerCase();
+  const textHit = keywordList.some(k => k && text.includes(k));
+  return tagHit || textHit;
+});
+const selected = (filtered.length > 0 ? filtered : highlights).slice(0, 15);
+return {
+  selected_highlight_ids: selected.map(h => h.id),
+  selected_highlights: selected,
+  matched_skills: [...new Set(selected.flatMap(h => h.tags || []))].slice(0, 20),
+  missing_requirements: requirements.filter(r =>
+    !selected.some(h =>
+      (h.tags || []).some(t => String(t).toLowerCase().includes(String(r).toLowerCase())) ||
+      String(h.description || '').toLowerCase().includes(String(r).toLowerCase())
+    )
+  )
+};`;
+
+  nodes.push(
+    buildCodeTool(
+      String(nodeId++),
+      "Select Evidence Tool",
+      [toolX, toolY],
+      "select_evidence",
+      TOOL_SELECT_EVIDENCE_DESCRIPTION,
+      selectEvidenceToolCode,
+      TOOL_SELECT_EVIDENCE_SCHEMA
+    )
+  );
+
+  connections["Select Evidence Tool"] = {
+    ai_tool: [[{ node: agentNodeName, type: "ai_tool", index: 0 }]],
+  };
+
+  toolX += POSITION_STEP_X;
+
+  // Tool 3: Generate Resume
+  const optimizerRules =
+    opts.validationMode === "strict" ? OPTIMIZER_STRICT_RULES : OPTIMIZER_LENIENT_RULES;
+  const optimizerPrompt = OPTIMIZER_BASE_SYSTEM_PROMPT + "\n\n" + optimizerRules;
+  const coverLetterInstr = opts.includeCoverLetter ? COVER_LETTER_INSTRUCTION : NO_COVER_LETTER_INSTRUCTION;
+
+  const generateResumeToolCode = `const rag = $('Prepare Agent Input').item.json.rag_export;
+const highlights = rag.highlights || [];
+const selectedIds = selected_highlight_ids || [];
+const selectedHighlights = selectedIds.length > 0
+  ? highlights.filter(h => selectedIds.includes(h.id))
+  : highlights.slice(0, 10);
+let userPrompt = 'Selected Highlights:\\n' + JSON.stringify(selectedHighlights, null, 2);
+userPrompt += '\\n\\nJob Title: ' + (job_title || 'Unknown');
+userPrompt += '\\nCompany: ' + (job_company || 'Unknown');
+userPrompt += '\\n\\n${escapeForSingleQuotes(coverLetterInstr)}';
+if (feedback) {
+  userPrompt += '\\n\\nFEEDBACK FROM PREVIOUS ATTEMPT (fix these issues):\\n' + feedback;
+}
+userPrompt += '\\n\\nReturn ONLY the Markdown resume.';
+const response = await $helpers.httpRequest({
+  method: 'POST',
+  url: 'https://openrouter.ai/api/v1/chat/completions',
+  headers: {
+    'Authorization': 'Bearer ' + $env.OPENROUTER_API_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: {
+    model: '${opts.model}',
+    temperature: ${opts.temperature},
+    messages: [
+      { role: 'system', content: ${JSON.stringify(optimizerPrompt)} },
+      { role: 'user', content: userPrompt }
+    ]
+  }
+});
+return response.choices?.[0]?.message?.content ?? 'Error generating resume';`;
+
+  nodes.push(
+    buildCodeTool(
+      String(nodeId++),
+      "Generate Resume Tool",
+      [toolX, toolY],
+      "generate_resume",
+      TOOL_GENERATE_RESUME_DESCRIPTION,
+      generateResumeToolCode,
+      TOOL_GENERATE_RESUME_SCHEMA
+    )
+  );
+
+  connections["Generate Resume Tool"] = {
+    ai_tool: [[{ node: agentNodeName, type: "ai_tool", index: 0 }]],
+  };
+
+  toolX += POSITION_STEP_X;
+
+  if (opts.enableValidation) {
+    const hallucinationPrompt =
+      opts.validationMode === "strict"
+        ? HALLUCINATION_STRICT_SYSTEM_PROMPT
+        : HALLUCINATION_LENIENT_SYSTEM_PROMPT;
+
+    const validateResumeToolCode = `const rag = $('Prepare Agent Input').item.json.rag_export;
+const highlights = rag.highlights || [];
+const halResponse = await $helpers.httpRequest({
+  method: 'POST',
+  url: 'https://openrouter.ai/api/v1/chat/completions',
+  headers: {
+    'Authorization': 'Bearer ' + $env.OPENROUTER_API_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: {
+    model: '${opts.model}',
+    temperature: 0.1,
+    messages: [
+      { role: 'system', content: ${JSON.stringify(hallucinationPrompt)} },
+      { role: 'user', content: 'Original highlights:\\n' + JSON.stringify(highlights, null, 2) + '\\n\\nOptimized resume:\\n' + resume_text }
+    ]
+  }
+});
+let halResult = {};
+try {
+  const halContent = halResponse.choices?.[0]?.message?.content ?? '{}';
+  const halCleaned = halContent.replace(/\\\`\\\`\\\`json\\\\n?|\\\\n?\\\`\\\`\\\`/g, '').trim();
+  halResult = JSON.parse(halCleaned);
+} catch (e) {
+  halResult = { no_hallucination_score: 0.8, concerns: [] };
+}
+const aiResponse = await $helpers.httpRequest({
+  method: 'POST',
+  url: 'https://openrouter.ai/api/v1/chat/completions',
+  headers: {
+    'Authorization': 'Bearer ' + $env.OPENROUTER_API_KEY,
+    'Content-Type': 'application/json'
+  },
+  body: {
+    model: '${opts.model}',
+    temperature: 0.1,
+    messages: [
+      { role: 'system', content: ${JSON.stringify(AI_GENERATED_SYSTEM_PROMPT)} },
+      { role: 'user', content: 'Analyze this resume:\\n' + resume_text }
+    ]
+  }
+});
+let aiResult = {};
+try {
+  const aiContent = aiResponse.choices?.[0]?.message?.content ?? '{}';
+  const aiCleaned = aiContent.replace(/\\\`\\\`\\\`json\\\\n?|\\\\n?\\\`\\\`\\\`/g, '').trim();
+  aiResult = JSON.parse(aiCleaned);
+} catch (e) {
+  aiResult = { ai_probability: 0.2, indicators: [] };
+}
+const halScore = halResult.no_hallucination_score ?? 0.8;
+const aiProb = aiResult.ai_probability ?? 0.2;
+const passed = halScore >= 0.7 && aiProb <= 0.5;
+const feedback = [];
+if (halScore < 0.7 && halResult.concerns?.length > 0) {
+  feedback.push('Avoid fabricated content: ' + halResult.concerns.slice(0, 3).join(', '));
+}
+if (aiProb > 0.5 && aiResult.indicators?.length > 0) {
+  feedback.push('Reduce AI markers: ' + aiResult.indicators.slice(0, 3).join(', '));
+}
+return {
+  passed,
+  hallucination_score: halScore,
+  ai_probability: aiProb,
+  concerns: [...(halResult.concerns || []), ...(aiResult.indicators || [])],
+  feedback: feedback.join('. ')
+};`;
+
+    nodes.push(
+      buildCodeTool(
+        String(nodeId++),
+        "Validate Resume Tool",
+        [toolX, toolY],
+        "validate_resume",
+        TOOL_VALIDATE_RESUME_DESCRIPTION,
+        validateResumeToolCode,
+        TOOL_VALIDATE_RESUME_SCHEMA
+      )
+    );
+
+    connections["Validate Resume Tool"] = {
+      ai_tool: [[{ node: agentNodeName, type: "ai_tool", index: 0 }]],
+    };
+  }
+
+  const formatResponseCode = `const agentOutput = $json.output ?? $json.text ?? '';
+const chatId = $('Prepare Agent Input').item.json.chat_id || '';
+if (!agentOutput || agentOutput.includes('Error')) {
+  return [{
+    json: {
+      chat_id: chatId,
+      message: '❌ **Failed to generate resume**\\n\\nPlease try again with a different job description.',
+      error: true
+    }
+  }];
+}
+return [{
+  json: {
+    chat_id: chatId,
+    message: agentOutput,
+    resume_markdown: agentOutput,
+    error: false
+  }
+}];`;
+
+  nodes.push(
+    buildFunctionNode(String(nodeId++), "Format Response", [posX, MAIN_Y], formatResponseCode)
+  );
+  posX += POSITION_STEP_X;
+
+  connections[agentNodeName] = {
+    main: [[{ node: "Format Response", type: "main", index: 0 }]],
+  };
+
+  if (opts.triggerType === "telegram") {
+    nodes.push(
+      buildTelegramSendNode(
+        String(nodeId++),
+        "Send to Telegram",
+        [posX, MAIN_Y],
+        "={{$json.chat_id}}",
+        "={{$json.message}}"
+      )
+    );
+
+    connections["Format Response"] = {
+      main: [[{ node: "Send to Telegram", type: "main", index: 0 }]],
+    };
+  } else {
+    nodes.push({
+      id: String(nodeId++),
+      name: "Respond",
+      type: "n8n-nodes-base.respondToWebhook",
+      typeVersion: 1,
+      position: [posX, MAIN_Y],
+      parameters: {
+        respondWith: "json",
+        responseBody: "={{ $json }}",
+      },
+    });
+
+    connections["Format Response"] = {
+      main: [[{ node: "Respond", type: "main", index: 0 }]],
+    };
+  }
+
+  return {
+    name: opts.workflowName + " (Agent)",
+    nodes,
+    connections: connections as N8nWorkflow["connections"],
+    settings: {
+      executionOrder: "v1",
+      timezone: "UTC",
+    },
+    meta: {
+      generatedBy: "build-cv",
+      architecture: "agent-based",
+      provider: opts.provider,
+      triggerType: opts.triggerType,
+      validationEnabled: opts.enableValidation,
+      memoryEnabled: opts.enableMemory,
+      outputFormat: opts.outputFormat,
+    },
+  };
 }
 
 // =============================================================================
@@ -321,6 +960,13 @@ export function generateN8nWorkflow(
   options: N8nWorkflowOptions = {}
 ): N8nWorkflow {
   const opts = { ...DEFAULT_OPTIONS, ...options };
+
+  // Route to agent-based workflow if requested
+  if (opts.architecture === "agent-based") {
+    return generateAgentBasedWorkflow(rag, opts);
+  }
+
+  // HTTP chain workflow (default)
 
   const trimmedHighlights = rag.highlights.slice(0, opts.highlightsLimit);
   const ragPayload = {
