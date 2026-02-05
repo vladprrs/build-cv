@@ -72,6 +72,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -83,3 +84,7 @@ next-env.d.ts
 # local notes
 logic.md
 prompts.md
+
+# Claude Code local skills (not for public repo)
+kimi-skills/
+.claude/

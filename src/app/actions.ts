@@ -5,12 +5,12 @@ import { jobs, highlights } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import {
-  generateN8nWorkflow,
-  type N8nWorkflowOptions,
-  type RAGExportData,
-  type RAGExportHighlight,
-} from '@/lib/n8n/workflow';
+import { generateN8nWorkflow } from '@/lib/n8n/workflow';
+import type {
+  N8nWorkflowOptions,
+  RAGExportData,
+  RAGExportHighlight,
+} from '@/lib/n8n/types';
 
 // ============ TYPES ============
 
@@ -108,8 +108,6 @@ export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'c
       website: data.website === '' || data.website === undefined ? null : data.website,
     };
 
-    console.log('Updating job:', id, JSON.stringify(cleanedData));
-
     // Manual validation instead of Zod for now
     if (!cleanedData.company || cleanedData.company.trim() === '') {
       throw new Error('Company name is required');
@@ -147,7 +145,6 @@ export async function updateJob(id: string, data: Partial<Omit<NewJob, 'id' | 'c
     
     return result[0];
   } catch (error: unknown) {
-    console.error('updateJob error:', error);
     const message = error instanceof Error ? error.message : 'Failed to update job';
     throw new Error(message);
   }
