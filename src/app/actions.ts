@@ -5,12 +5,6 @@ import { jobs, highlights } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { generateN8nWorkflow } from '@/lib/n8n/workflow';
-import type {
-  N8nWorkflowOptions,
-  RAGExportData,
-  RAGExportHighlight,
-} from '@/lib/n8n/types';
 
 // ============ TYPES ============
 
@@ -912,7 +906,7 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
     revalidatePath('/');
     revalidatePath('/jobs');
     revalidatePath('/highlights');
-    revalidatePath('/export');
+
 
     return result;
   } catch (err: unknown) {
@@ -1056,70 +1050,3 @@ export async function searchJobsWithHighlights(
   }));
 }
 
-// ============ RAG EXPORT ============
-
-
-/**
- * Export highlights in RAG format for AI resume generation
- */
-export async function exportHighlightsForRAG(
-  customContext?: string,
-  filters?: SearchFilters
-): Promise<RAGExportData> {
-  // Get filtered highlights
-  const highlightsWithJobs = await searchHighlights(filters || {});
-
-  // Format highlights for RAG
-  const formattedHighlights: RAGExportHighlight[] = highlightsWithJobs.map((h) => {
-    // Format period
-    const startDate = h.startDate;
-    const endDate = h.endDate || "Present";
-    const period = `${startDate} - ${endDate}`;
-
-    // Format metrics as string
-    const metricsStr = h.metrics && h.metrics.length > 0
-      ? h.metrics.map((m) => `${m.label}: ${m.prefix || ""}${m.value}${m.unit}`).join("; ")
-      : "";
-
-    // Combine all tags
-    const tags = [...h.domains, ...h.skills, ...h.keywords];
-
-    return {
-      id: h.id,
-      title: h.title,
-      company: h.job?.company || undefined,
-      period,
-      description: h.content,
-      metrics: metricsStr,
-      tags,
-    };
-  });
-
-  // Default context if not provided
-  const context = customContext || 
-    "Professional experience highlights for resume generation. Each highlight represents a specific achievement, project, responsibility, or education entry with associated metrics and tags.";
-
-  return {
-    context,
-    request_filters: {
-      domains: filters?.domains,
-      skills: filters?.skills,
-      types: filters?.types,
-      query: filters?.query,
-      onlyWithMetrics: filters?.onlyWithMetrics,
-    },
-    highlights: formattedHighlights,
-  };
-}
-
-/**
- * Export n8n workflow for resume optimization using OpenRouter
- */
-export async function exportN8nWorkflow(
-  customContext?: string,
-  filters?: SearchFilters,
-  options?: N8nWorkflowOptions
-) {
-  const data = await exportHighlightsForRAG(customContext, filters);
-  return generateN8nWorkflow(data, options);
-}

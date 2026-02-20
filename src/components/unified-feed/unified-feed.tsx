@@ -6,7 +6,6 @@ import { SearchBar } from './search-bar';
 import { FilterBar } from './filter-bar';
 import { ResultsHeader } from './results-header';
 import { CompanySection } from './company-section';
-import { ExportPanel } from './export-panel';
 import { FilterProvider, useFilters } from '@/contexts/filter-context';
 import { CreateJobDialog } from '@/components/dialogs/job-dialog';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
@@ -45,7 +44,6 @@ function UnifiedFeedContent({
 
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
   const [showNewJobDialog, setShowNewJobDialog] = useState(false);
-  const [showExportPanel, setShowExportPanel] = useState(false);
 
   const totalHighlights = jobs.reduce((sum, job) => sum + job.allHighlightsCount, 0);
   const filteredHighlights = jobs.reduce((sum, job) => sum + job.highlights.length, 0);
@@ -91,13 +89,6 @@ function UnifiedFeedContent({
       if ((e.metaKey || e.ctrlKey) && !e.shiftKey && e.key === 'n' && !isInput) {
         e.preventDefault();
         setShowNewHighlightDialog(true);
-        return;
-      }
-
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && e.key === 'C') {
-        e.preventDefault();
-        const copyButton = document.querySelector('[data-copy-json]') as HTMLButtonElement;
-        copyButton?.click();
         return;
       }
 
@@ -154,7 +145,6 @@ function UnifiedFeedContent({
           <div className="py-6 space-y-4">
             <SearchBar searchInputRef={searchInputRef} />
             <FilterBar domains={domains} skills={skills} />
-            <ExportPanel isOpen={showExportPanel} onOpenChange={setShowExportPanel} />
           </div>
         </div>
       </header>

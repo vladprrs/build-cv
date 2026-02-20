@@ -4,9 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Build CV is a Headless CMS for managing professional career data. Users store atomic "highlights" (achievements, projects, responsibilities) with rich metadata (metrics, skills, domains) and export structured JSON for AI resume generation (RAG pipeline).
-
-Key capability: **n8n Workflow Export** — generates ready-to-import n8n workflows that create Telegram bots for automated resume optimization using LLM pipelines.
+Build CV is a Headless CMS for managing professional career data. Users store atomic "highlights" (achievements, projects, responsibilities) with rich metadata (metrics, skills, domains). Data is stored in Turso and can be queried at runtime by external tools (e.g. n8n workflows) via Turso's HTTP API.
 
 **Production URL:** https://build-cv-henna.vercel.app
 
@@ -48,14 +46,9 @@ Two main entities in `src/db/schema.ts`:
 
 ### Key Files
 
-- `src/app/actions.ts` — All Server Actions (CRUD, search, backup, RAG export, n8n workflow generation)
+- `src/app/actions.ts` — All Server Actions (CRUD, search, backup)
 - `src/db/index.ts` — Database connection (auto-switches Turso vs local SQLite)
 - `src/lib/types.ts` — Shared TypeScript types
-- `src/lib/export-utils.ts` — RAG export formatting utilities
-- `src/lib/n8n/workflow.ts` — n8n workflow generator (HTTP chain + agent-based)
-- `src/lib/n8n/prompts.ts` — LLM prompts for resume optimization and agent tools
-- `src/lib/n8n/types.ts` — n8n workflow TypeScript types
-- `docs/n8n-telegram-workflow-plan.md` — n8n workflow architecture documentation
 - `UIUX.md` — UI/UX design specification (target architecture)
 
 ### Page Structure
@@ -66,51 +59,7 @@ Two main entities in `src/db/schema.ts`:
 | `/jobs` | Job management cards |
 | `/jobs/[id]` | Job detail with its highlights |
 | `/highlights` | Table view with search/filter/bulk operations |
-| `/export` | RAG export builder (JSON/Markdown) |
 | `/backup` | Full database backup/restore |
-
-### n8n Workflow Export
-
-Generates complete n8n workflows for automated resume optimization via Telegram bot.
-
-**Two architectures available** (`architecture` option):
-
-#### 1. HTTP Chain (default) — 21 nodes
-```
-Telegram Trigger → Route Message → Is Command? → Is Valid?
-→ Inject Context → Parse Job (HTTP) → Prefilter → Select Evidence (HTTP)
-→ Generate Resume (HTTP) → [Validation Loop] → Format Response → Send to Telegram
-```
-
-#### 2. AI Agent — 16 nodes
-```
-Telegram Trigger → Route Message → Is Command? → Is Valid?
-→ Prepare Agent Input → Resume Agent ← [OpenRouter Model, Memory, Tools]
-→ Format Response → Send to Telegram
-```
-
-Agent tools:
-- `parse_job_posting` — extracts job requirements and keywords
-- `select_evidence` — matches highlights to job requirements
-- `generate_resume` — creates optimized Markdown resume
-- `validate_resume` — checks for hallucinations and AI markers
-
-**Validation loop** (optional, 2 iterations max):
-- Hallucination Check — detects fabricated facts
-- AI Detection — identifies LLM-generated markers
-- Quality Evaluation — decides retry or pass
-
-**Options** (`N8nWorkflowOptions`):
-- `architecture`: `"http-chain"` | `"agent-based"` (default: http-chain)
-- `triggerType`: `"webhook"` | `"telegram"`
-- `enableValidation`: boolean (hallucination + AI detection)
-- `validationMode`: `"strict"` | `"lenient"`
-- `includeCoverLetter`: boolean
-- `enableMemory`: boolean (agent-based only, session memory)
-- `maxAgentIterations`: number (default: 10)
-- `model`: OpenRouter model ID (default: `openai/gpt-4o-mini`)
-
-See `docs/agents.md` for detailed agent architecture documentation.
 
 ### Conventions
 
