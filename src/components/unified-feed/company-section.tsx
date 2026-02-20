@@ -5,7 +5,7 @@ import { HighlightCard } from '@/components/cards/highlight-card';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { EditJobDialog } from '@/components/dialogs/job-dialog';
 import { Building2, ChevronDown, ChevronRight, Plus, Pencil } from 'lucide-react';
-import type { Job, Highlight } from '@/app/actions';
+import type { Job, Highlight } from '@/lib/data-types';
 import Image from 'next/image';
 
 interface CompanySectionProps {

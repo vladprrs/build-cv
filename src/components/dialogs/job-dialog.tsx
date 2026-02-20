@@ -12,7 +12,8 @@ import {
 import { Button } from '@/components/ui/button';
 import { JobForm, JobFormData } from '@/components/forms/job-form';
 import { Plus, Pencil } from 'lucide-react';
-import { createJob, updateJob, type Job } from '@/app/actions';
+import { createJob, updateJob } from '@/app/actions';
+import type { Job } from '@/lib/data-types';
 import { useRouter } from 'next/navigation';
 
 interface CreateJobDialogProps {

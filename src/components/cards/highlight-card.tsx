@@ -1,7 +1,7 @@
 'use client';
 
 import { EditHighlightDialog } from '@/components/dialogs/highlight-dialog';
-import type { Highlight, Metric, HighlightType } from '@/app/actions';
+import type { Highlight, Metric, HighlightType } from '@/lib/data-types';
 import { Award, FolderKanban, Briefcase, GraduationCap, Pencil } from 'lucide-react';
 
 interface HighlightCardProps {

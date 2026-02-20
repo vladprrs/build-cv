@@ -22,7 +22,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { Plus, X, Trash2, ChevronDown, ChevronRight } from 'lucide-react';
-import type { HighlightType } from '@/app/actions';
+import type { HighlightType } from '@/lib/data-types';
 
 const metricSchema = z.object({
   label: z.string().min(1, 'Label is required'),

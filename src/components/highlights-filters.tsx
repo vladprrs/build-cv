@@ -11,7 +11,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { type HighlightType } from "@/app/actions";
+import { type HighlightType } from "@/lib/data-types";
 import { Search, X, Filter, BarChart3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 

@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import type { HighlightType } from '@/app/actions';
+import type { HighlightType } from '@/lib/data-types';
 
 export interface FilterState {
   query: string;

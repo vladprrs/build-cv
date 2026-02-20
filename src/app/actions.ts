@@ -5,11 +5,33 @@ import { jobs, highlights } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
+import type {
+  SearchFilters,
+  JobWithHighlights,
+  HighlightWithJob,
+  JobWithFilteredHighlights,
+  BackupData,
+  BackupJob,
+  BackupHighlight,
+  ImportResult,
+} from '@/lib/data-types';
 
 // ============ TYPES ============
 
 export type Job = typeof jobs.$inferSelect;
 export type NewJob = typeof jobs.$inferInsert;
+
+// Re-export shared types from data-types for consumers
+export type {
+  SearchFilters,
+  JobWithHighlights,
+  HighlightWithJob,
+  JobWithFilteredHighlights,
+  BackupData,
+  BackupJob,
+  BackupHighlight,
+  ImportResult,
+} from '@/lib/data-types';
 
 // ============ VALIDATION SCHEMAS ============
 
@@ -363,10 +385,6 @@ export async function deleteHighlight(id: string) {
 /**
  * Get all jobs with their highlights (for Timeline view)
  */
-export interface JobWithHighlights extends Job {
-  highlights: Highlight[];
-}
-
 export async function getJobsWithHighlights(): Promise<JobWithHighlights[]> {
   // First, get all jobs sorted by start date
   const allJobs = await db
@@ -425,10 +443,6 @@ export async function toggleHighlightVisibility(id: string) {
 }
 
 // ============ TABLE VIEW ACTIONS ============
-
-export interface HighlightWithJob extends Highlight {
-  job: Job | null;
-}
 
 /**
  * Get all highlights with their associated job info (for Table view)
@@ -521,14 +535,6 @@ export async function quickUpdateHighlightTitle(id: string, title: string) {
 }
 
 // ============ SEARCH & FILTER ACTIONS ============
-
-export interface SearchFilters {
-  query?: string;
-  types?: HighlightType[];
-  domains?: string[];
-  skills?: string[];
-  onlyWithMetrics?: boolean;
-}
 
 /**
  * Search highlights with filters
@@ -644,22 +650,6 @@ export async function getAllSkills(): Promise<string[]> {
 }
 
 // ============ BACKUP & IMPORT ============
-
-export interface BackupJob extends Omit<Job, 'id'> {
-  id: string; // slug
-}
-
-export interface BackupHighlight extends Omit<Highlight, 'id' | 'jobId'> {
-  id: string; // slug
-  jobId?: string | null; // job slug
-}
-
-export interface BackupData {
-  version: string;
-  exportedAt: string;
-  jobs: BackupJob[];
-  highlights: BackupHighlight[];
-}
 
 /**
  * Export all database data for backup
@@ -804,13 +794,6 @@ const backupDataSchema = z.object({
   highlights: z.array(backupHighlightSchema),
 });
 
-export interface ImportResult {
-  success: boolean;
-  jobsImported: number;
-  highlightsImported: number;
-  errors: string[];
-}
-
 /**
  * Import database from backup data
  * Uses REPLACE to overwrite existing records with same ID
@@ -948,11 +931,6 @@ export async function clearDatabase(): Promise<{ jobsDeleted: number; highlights
 }
 
 // ============ UNIFIED FEED ============
-
-export interface JobWithFilteredHighlights extends Job {
-  highlights: Highlight[];
-  allHighlightsCount: number;
-}
 
 /**
  * Search jobs with filtered highlights for Unified Feed

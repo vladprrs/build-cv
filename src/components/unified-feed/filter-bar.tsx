@@ -6,7 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
-import { type HighlightType } from '@/app/actions';
+import { type HighlightType } from '@/lib/data-types';
 import { ChevronDown, X } from 'lucide-react';
 import { useFilters } from '@/contexts/filter-context';
 

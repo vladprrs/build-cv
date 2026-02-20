@@ -13,22 +13,21 @@ export interface Job {
   company: string;
   role: string;
   startDate: string;
-  endDate?: string | null;
-  logoUrl?: string;
-  website?: string;
+  endDate: string | null;
+  logoUrl: string | null;
+  website: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
 export interface Highlight {
   id: string;
-  jobId?: string | null;
-  job?: Job | null;
+  jobId: string | null;
   type: HighlightType;
   title: string;
   content: string;
   startDate: string;
-  endDate?: string | null;
+  endDate: string | null;
   domains: string[];
   skills: string[];
   keywords: string[];

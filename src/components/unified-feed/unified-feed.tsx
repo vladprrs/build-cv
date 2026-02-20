@@ -11,12 +11,7 @@ import { CreateJobDialog } from '@/components/dialogs/job-dialog';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { Settings, Plus } from 'lucide-react';
 import Link from 'next/link';
-import type { Job, Highlight, HighlightType } from '@/app/actions';
-
-interface JobWithFilteredHighlights extends Job {
-  highlights: Highlight[];
-  allHighlightsCount: number;
-}
+import type { HighlightType, JobWithFilteredHighlights } from '@/lib/data-types';
 
 interface UnifiedFeedContentProps {
   initialJobs: JobWithFilteredHighlights[];

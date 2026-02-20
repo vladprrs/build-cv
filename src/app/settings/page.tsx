@@ -29,9 +29,8 @@ import {
   exportDatabase,
   importDatabase,
   clearDatabase,
-  type BackupData,
-  type ImportResult,
 } from '@/app/actions';
+import type { BackupData, ImportResult } from '@/lib/data-types';
 import {
   ArrowLeft,
   Download,

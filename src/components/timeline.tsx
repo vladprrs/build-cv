@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { HighlightCard } from '@/components/cards/highlight-card';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { Building2, Calendar, Briefcase, ChevronDown, ChevronUp } from 'lucide-react';
-import type { JobWithHighlights } from '@/app/actions';
+import type { JobWithHighlights } from '@/lib/data-types';
 import Link from 'next/link';
 import Image from 'next/image';
 

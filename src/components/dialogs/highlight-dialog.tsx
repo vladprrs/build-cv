@@ -15,8 +15,8 @@ import {
   createHighlight,
   updateHighlight,
   deleteHighlight,
-  type Highlight,
 } from '@/app/actions';
+import type { Highlight } from '@/lib/data-types';
 import {
   AlertDialog,
   AlertDialogAction,

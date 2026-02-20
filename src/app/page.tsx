@@ -4,8 +4,8 @@ import {
   searchJobsWithHighlights,
   getAllDomains,
   getAllSkills,
-  type HighlightType,
 } from '@/app/actions';
+import type { HighlightType } from '@/lib/data-types';
 
 interface SearchParams {
   q?: string;
