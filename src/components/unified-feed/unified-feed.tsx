@@ -9,6 +9,8 @@ import { CompanySection } from './company-section';
 import { FilterProvider, useFilters } from '@/contexts/filter-context';
 import { CreateJobDialog } from '@/components/dialogs/job-dialog';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
+import { AuthButton } from '@/components/auth/auth-button';
+import { ModeIndicator } from '@/components/auth/mode-indicator';
 import { Settings, Plus } from 'lucide-react';
 import Link from 'next/link';
 import type { HighlightType, JobWithFilteredHighlights } from '@/lib/data-types';
@@ -24,18 +26,24 @@ interface UnifiedFeedContentProps {
     skills?: string[];
     onlyWithMetrics?: boolean;
   }) => Promise<JobWithFilteredHighlights[]>;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 function UnifiedFeedContent({
   initialJobs,
-  domains,
-  skills,
+  domains: initialDomains,
+  skills: initialSkills,
   searchJobsAction,
+  mode = 'authenticated',
 }: UnifiedFeedContentProps) {
   const router = useRouter();
   const { filters, hasActiveFilters } = useFilters();
   const [jobs, setJobs] = useState<JobWithFilteredHighlights[]>(initialJobs);
+  const [domains, setDomains] = useState<string[]>(initialDomains);
+  const [skills, setSkills] = useState<string[]>(initialSkills);
+  const [isLoading, setIsLoading] = useState(mode === 'anonymous');
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const dataLayerRef = useRef<import('@/lib/data-layer/types').DataLayer | null>(null);
 
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
   const [showNewJobDialog, setShowNewJobDialog] = useState(false);
@@ -44,24 +52,62 @@ function UnifiedFeedContent({
   const filteredHighlights = jobs.reduce((sum, job) => sum + job.highlights.length, 0);
   const totalPositions = jobs.length;
 
+  // Anonymous mode: load data from IndexedDB on mount
+  useEffect(() => {
+    if (mode !== 'anonymous') return;
+
+    async function loadFromIndexedDB() {
+      try {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        dataLayerRef.current = dl;
+
+        const [jobsData, domainsData, skillsData] = await Promise.all([
+          dl.searchJobsWithHighlights({}),
+          dl.getAllDomains(),
+          dl.getAllSkills(),
+        ]);
+        setJobs(jobsData);
+        setDomains(domainsData);
+        setSkills(skillsData);
+      } catch (error) {
+        console.error('Failed to load from IndexedDB:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadFromIndexedDB();
+  }, [mode]);
+
+  // Re-fetch when filters change
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const result = await searchJobsAction({
+        const filterPayload = {
           query: filters.query || undefined,
           types: filters.types.length > 0 ? filters.types : undefined,
           domains: filters.domains.length > 0 ? filters.domains : undefined,
           skills: filters.skills.length > 0 ? filters.skills : undefined,
           onlyWithMetrics: filters.onlyWithMetrics || undefined,
-        });
-        setJobs(result);
+        };
+
+        if (mode === 'anonymous' && dataLayerRef.current) {
+          const result = await dataLayerRef.current.searchJobsWithHighlights(filterPayload);
+          setJobs(result);
+        } else if (mode === 'authenticated') {
+          const result = await searchJobsAction(filterPayload);
+          setJobs(result);
+        }
       } catch (error) {
         console.error('Failed to fetch filtered data:', error);
       }
     };
 
-    fetchData();
-  }, [filters, searchJobsAction]);
+    if (!isLoading) {
+      fetchData();
+    }
+  }, [filters, searchJobsAction, mode, isLoading]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -98,9 +144,25 @@ function UnifiedFeedContent({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleUpdate = useCallback(() => {
-    router.refresh();
-  }, [router]);
+  const handleUpdate = useCallback(async () => {
+    if (mode === 'anonymous' && dataLayerRef.current) {
+      // Reload from IndexedDB
+      const [jobsData, domainsData, skillsData] = await Promise.all([
+        dataLayerRef.current.searchJobsWithHighlights({}),
+        dataLayerRef.current.getAllDomains(),
+        dataLayerRef.current.getAllSkills(),
+      ]);
+      setJobs(jobsData);
+      setDomains(domainsData);
+      setSkills(skillsData);
+    } else {
+      router.refresh();
+    }
+  }, [router, mode]);
+
+  if (isLoading) {
+    return <div className="min-h-screen bg-background" />;
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -110,12 +172,16 @@ function UnifiedFeedContent({
           {/* Top Bar */}
           <div className="flex items-center justify-between py-6 border-b border-border/40">
             <div>
-              <h1 className="text-lg font-semibold tracking-tight">Build CV</h1>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-semibold tracking-tight">Build CV</h1>
+                <ModeIndicator />
+              </div>
               <p className="text-sm text-muted-foreground">
                 {totalPositions} positions · {totalHighlights} highlights
               </p>
             </div>
             <div className="flex items-center gap-3">
+              <AuthButton />
               <Link
                 href="/settings"
                 className="p-2 text-muted-foreground hover:text-foreground transition-colors"
@@ -124,6 +190,7 @@ function UnifiedFeedContent({
               </Link>
               <CreateJobDialog
                 onSuccess={handleUpdate}
+                mode={mode}
                 trigger={
                   <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors">
                     <Plus className="h-4 w-4" />
@@ -162,6 +229,7 @@ function UnifiedFeedContent({
               </p>
               <CreateJobDialog
                 onSuccess={handleUpdate}
+                mode={mode}
                 trigger={
                   <button className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium bg-foreground text-background rounded-md hover:bg-foreground/90 transition-colors">
                     <Plus className="h-4 w-4" />
@@ -186,6 +254,7 @@ function UnifiedFeedContent({
                 highlights={job.highlights}
                 onUpdate={handleUpdate}
                 defaultExpanded={!hasActiveFilters || job.highlights.length > 0}
+                mode={mode}
               />
             ))
           )}
@@ -201,6 +270,7 @@ function UnifiedFeedContent({
 
       <CreateHighlightDialog
         onSuccess={handleUpdate}
+        mode={mode}
         trigger={<span className="hidden" />}
         open={showNewHighlightDialog}
         onOpenChange={setShowNewHighlightDialog}
@@ -220,6 +290,7 @@ interface UnifiedFeedProps {
     skills?: string[];
     onlyWithMetrics?: boolean;
   }) => Promise<JobWithFilteredHighlights[]>;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 export function UnifiedFeed(props: UnifiedFeedProps) {

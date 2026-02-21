@@ -8,6 +8,7 @@ interface HighlightCardProps {
   highlight: Highlight;
   onUpdate?: () => void;
   onDelete?: () => void;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 const typeConfig: Record<HighlightType, { icon: React.ReactNode; color: string }> = {
@@ -29,7 +30,7 @@ const typeConfig: Record<HighlightType, { icon: React.ReactNode; color: string }
   },
 };
 
-export function HighlightCard({ highlight, onUpdate, onDelete }: HighlightCardProps) {
+export function HighlightCard({ highlight, onUpdate, onDelete, mode = 'authenticated' }: HighlightCardProps) {
   const type = (highlight.type as HighlightType) || 'achievement';
   const config = typeConfig[type];
   const metrics = (highlight.metrics as Metric[]) || [];
@@ -61,6 +62,7 @@ export function HighlightCard({ highlight, onUpdate, onDelete }: HighlightCardPr
               highlight={highlight}
               onSuccess={onUpdate}
               onDelete={onDelete}
+              mode={mode}
               trigger={
                 <button className="p-1 text-muted-foreground/50 hover:text-foreground opacity-0 group-hover:opacity-100 transition-all">
                   <Pencil className="h-3.5 w-3.5" />

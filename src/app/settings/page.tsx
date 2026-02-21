@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { useSession } from 'next-auth/react';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -30,7 +31,9 @@ import {
   importDatabase,
   clearDatabase,
 } from '@/app/actions';
+import { getUserDatabaseInfo } from '@/app/actions/user-db';
 import type { BackupData, ImportResult } from '@/lib/data-types';
+import { AuthButton } from '@/components/auth/auth-button';
 import {
   ArrowLeft,
   Download,
@@ -45,12 +48,25 @@ import {
   RefreshCw,
   HardDrive,
   Trash2,
+  Copy,
+  Cloud,
+  Database,
+  User,
 } from 'lucide-react';
 
 type Theme = 'light' | 'dark' | 'system';
 
+interface DbInfo {
+  tursoDbUrl: string;
+  tursoReadOnlyToken: string | null;
+  status: string;
+}
+
 export default function SettingsPage() {
   const router = useRouter();
+  const { data: session, status: authStatus } = useSession();
+  const isAuthenticated = authStatus === 'authenticated' && !!session?.user;
+
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [isClearing, setIsClearing] = useState(false);
@@ -58,6 +74,8 @@ export default function SettingsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [theme, setTheme] = useState<Theme>('system');
+  const [dbInfo, setDbInfo] = useState<DbInfo | null>(null);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
 
   // Load theme from localStorage on mount
   useEffect(() => {
@@ -68,11 +86,17 @@ export default function SettingsPage() {
     }
   }, []);
 
-  // Apply theme to document
+  // Load DB info for authenticated users
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    getUserDatabaseInfo().then((info) => {
+      if (info) setDbInfo(info as DbInfo);
+    });
+  }, [isAuthenticated]);
+
   const applyTheme = (newTheme: Theme) => {
     const root = document.documentElement;
     root.classList.remove('light', 'dark');
-
     if (newTheme === 'system') {
       const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
       root.classList.add(systemDark ? 'dark' : 'light');
@@ -81,18 +105,30 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle theme change
   const handleThemeChange = (newTheme: Theme) => {
     setTheme(newTheme);
     localStorage.setItem('theme', newTheme);
     applyTheme(newTheme);
   };
 
-  // Handle export
+  const handleCopy = async (text: string, field: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopiedField(field);
+    setTimeout(() => setCopiedField(null), 2000);
+  };
+
+  // Handle export — works for both modes
   const handleExport = async () => {
     setIsExporting(true);
     try {
-      const data = await exportDatabase();
+      let data: BackupData;
+      if (isAuthenticated) {
+        data = await exportDatabase();
+      } else {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        data = await dl.exportDatabase();
+      }
       const blob = new Blob([JSON.stringify(data, null, 2)], {
         type: 'application/json',
       });
@@ -111,31 +147,34 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle file selection
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setSelectedFile(file);
     setImportResult(null);
   };
 
-  // Handle import
   const handleImport = async () => {
     if (!selectedFile) return;
-
     setIsImporting(true);
     setImportResult(null);
 
     try {
       const text = await selectedFile.text();
       const data = JSON.parse(text) as BackupData;
-      const result = await importDatabase(data);
-      setImportResult(result);
+      let result: ImportResult;
 
+      if (isAuthenticated) {
+        result = await importDatabase(data);
+      } else {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        result = await dl.importDatabase(data);
+      }
+
+      setImportResult(result);
       if (result.success) {
         setSelectedFile(null);
-        if (fileInputRef.current) {
-          fileInputRef.current.value = '';
-        }
+        if (fileInputRef.current) fileInputRef.current.value = '';
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to parse backup file';
@@ -150,11 +189,16 @@ export default function SettingsPage() {
     }
   };
 
-  // Handle clear all data
   const handleClearData = async () => {
     setIsClearing(true);
     try {
-      await clearDatabase();
+      if (isAuthenticated) {
+        await clearDatabase();
+      } else {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.clearDatabase();
+      }
       router.push('/');
       router.refresh();
     } catch (err) {
@@ -174,7 +218,7 @@ export default function SettingsPage() {
               <ArrowLeft className="h-4 w-4" />
             </Link>
           </Button>
-          <div>
+          <div className="flex-1">
             <h1 className="text-2xl font-bold tracking-tight flex items-center gap-2">
               <Settings className="h-6 w-6" />
               Settings
@@ -183,7 +227,126 @@ export default function SettingsPage() {
               Manage your preferences and data
             </p>
           </div>
+          <AuthButton />
         </div>
+
+        {/* Account Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Account
+            </CardTitle>
+            <CardDescription>
+              {isAuthenticated ? 'Your account information' : 'Sign in to sync your data across devices'}
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {isAuthenticated && session?.user ? (
+              <div className="flex items-center gap-3">
+                {session.user.image && (
+                  <img
+                    src={session.user.image}
+                    alt={session.user.name || 'User'}
+                    className="h-10 w-10 rounded-full"
+                  />
+                )}
+                <div>
+                  <p className="font-medium text-sm">{session.user.name}</p>
+                  <p className="text-xs text-muted-foreground">{session.user.email}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                You&apos;re using Build CV in local mode. Your data is stored in your browser.
+                Sign in to sync your data to the cloud.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Storage Indicator */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              {isAuthenticated ? <Cloud className="h-5 w-5" /> : <HardDrive className="h-5 w-5" />}
+              Storage
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center gap-2">
+              <Badge variant={isAuthenticated ? 'default' : 'secondary'}>
+                {isAuthenticated ? 'Cloud (Turso)' : 'Local (Browser)'}
+              </Badge>
+              <span className="text-sm text-muted-foreground">
+                {isAuthenticated
+                  ? 'Your data is stored securely in a dedicated cloud database.'
+                  : 'Data is stored in IndexedDB. It will be lost if you clear browser data.'}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* n8n Integration (authenticated only) */}
+        {isAuthenticated && dbInfo && dbInfo.status === 'ready' && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Database className="h-5 w-5" />
+                n8n Integration
+              </CardTitle>
+              <CardDescription>
+                Connect external tools to read your data
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Database URL</label>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs bg-muted p-2 rounded font-mono truncate">
+                    {dbInfo.tursoDbUrl}
+                  </code>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleCopy(dbInfo.tursoDbUrl, 'url')}
+                  >
+                    {copiedField === 'url' ? (
+                      <CheckCircle className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <Copy className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+
+              {dbInfo.tursoReadOnlyToken && (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Read-Only Token</label>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 text-xs bg-muted p-2 rounded font-mono truncate">
+                      {dbInfo.tursoReadOnlyToken.slice(0, 20)}...
+                    </code>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleCopy(dbInfo.tursoReadOnlyToken!, 'token')}
+                    >
+                      {copiedField === 'token' ? (
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                      ) : (
+                        <Copy className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Use these credentials in your n8n workflow to query your data via Turso&apos;s HTTP API.
+                  </p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Theme Section */}
         <Card>
@@ -318,7 +481,6 @@ export default function SettingsPage() {
                 </p>
               )}
 
-              {/* Import Result */}
               {importResult && (
                 <Alert variant={importResult.success ? 'default' : 'destructive'}>
                   {importResult.success ? (

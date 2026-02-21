@@ -21,9 +21,16 @@ interface CreateJobDialogProps {
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  mode?: 'anonymous' | 'authenticated';
 }
 
-export function CreateJobDialog({ onSuccess, trigger, open: controlledOpen, onOpenChange }: CreateJobDialogProps) {
+export function CreateJobDialog({
+  onSuccess,
+  trigger,
+  open: controlledOpen,
+  onOpenChange,
+  mode = 'authenticated',
+}: CreateJobDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
   const setOpen = onOpenChange ?? setInternalOpen;
@@ -34,15 +41,24 @@ export function CreateJobDialog({ onSuccess, trigger, open: controlledOpen, onOp
     setIsLoading(true);
     try {
       const { isCurrent, ...jobData } = data;
-      await createJob({
+      const jobPayload = {
         ...jobData,
         logoUrl: jobData.logoUrl || null,
         website: jobData.website || null,
         endDate: isCurrent ? null : (jobData.endDate || null),
-      });
+      };
+
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.createJob(jobPayload);
+      } else {
+        await createJob(jobPayload);
+        router.refresh();
+      }
+
       setOpen(false);
       onSuccess?.();
-      router.refresh();
     } catch (error: unknown) {
       console.error('Failed to create job:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';
@@ -79,9 +95,15 @@ interface EditJobDialogProps {
   job: Job;
   onSuccess?: () => void;
   trigger?: React.ReactNode;
+  mode?: 'anonymous' | 'authenticated';
 }
 
-export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
+export function EditJobDialog({
+  job,
+  onSuccess,
+  trigger,
+  mode = 'authenticated',
+}: EditJobDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
@@ -90,15 +112,24 @@ export function EditJobDialog({ job, onSuccess, trigger }: EditJobDialogProps) {
     setIsLoading(true);
     try {
       const { isCurrent, ...jobData } = data;
-      await updateJob(job.id, {
+      const updatePayload = {
         ...jobData,
         logoUrl: jobData.logoUrl || null,
         website: jobData.website || null,
         endDate: isCurrent ? null : (jobData.endDate || null),
-      });
+      };
+
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.updateJob(job.id, updatePayload);
+      } else {
+        await updateJob(job.id, updatePayload);
+        router.refresh();
+      }
+
       setOpen(false);
       onSuccess?.();
-      router.refresh();
     } catch (error: unknown) {
       console.error('Failed to update job:', error);
       const message = error instanceof Error ? error.message : 'Unknown error';

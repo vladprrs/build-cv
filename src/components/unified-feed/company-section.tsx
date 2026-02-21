@@ -13,6 +13,7 @@ interface CompanySectionProps {
   highlights: Highlight[];
   onUpdate: () => void;
   defaultExpanded?: boolean;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 function formatDate(dateStr: string | null): string {
@@ -42,6 +43,7 @@ export function CompanySection({
   highlights,
   onUpdate,
   defaultExpanded = true,
+  mode = 'authenticated',
 }: CompanySectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
 
@@ -85,6 +87,7 @@ export function CompanySection({
           <EditJobDialog
             job={job}
             onSuccess={onUpdate}
+            mode={mode}
             trigger={
               <button className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
                 <Pencil className="h-3.5 w-3.5" />
@@ -94,6 +97,7 @@ export function CompanySection({
           <CreateHighlightDialog
             jobId={job.id}
             onSuccess={onUpdate}
+            mode={mode}
             trigger={
               <button className="p-1.5 text-muted-foreground hover:text-foreground transition-colors">
                 <Plus className="h-3.5 w-3.5" />
@@ -129,6 +133,7 @@ export function CompanySection({
                 highlight={highlight}
                 onUpdate={onUpdate}
                 onDelete={onUpdate}
+                mode={mode}
               />
             ))
           )}

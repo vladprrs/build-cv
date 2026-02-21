@@ -9,7 +9,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Plus, Pencil } from 'lucide-react';
+import { Plus, Pencil, Trash } from 'lucide-react';
 import { HighlightForm, HighlightFormData } from '@/components/forms/highlight-form';
 import {
   createHighlight,
@@ -35,6 +35,7 @@ interface CreateHighlightDialogProps {
   trigger?: React.ReactNode;
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 export function CreateHighlightDialog({
@@ -43,6 +44,7 @@ export function CreateHighlightDialog({
   trigger,
   open: controlledOpen,
   onOpenChange,
+  mode = 'authenticated',
 }: CreateHighlightDialogProps) {
   const [internalOpen, setInternalOpen] = useState(false);
   const open = controlledOpen ?? internalOpen;
@@ -55,7 +57,7 @@ export function CreateHighlightDialog({
     setError(null);
 
     try {
-      await createHighlight({
+      const highlightData = {
         jobId: jobId || null,
         type: data.type,
         title: data.title,
@@ -67,7 +69,15 @@ export function CreateHighlightDialog({
         keywords: data.keywords,
         metrics: data.metrics.map(m => ({ ...m, unit: m.unit || '' })),
         isHidden: data.isHidden,
-      });
+      };
+
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.createHighlight(highlightData);
+      } else {
+        await createHighlight(highlightData);
+      }
 
       setOpen(false);
       onSuccess?.();
@@ -113,6 +123,7 @@ interface EditHighlightDialogProps {
   onSuccess?: () => void;
   onDelete?: () => void;
   trigger?: React.ReactNode;
+  mode?: 'anonymous' | 'authenticated';
 }
 
 export function EditHighlightDialog({
@@ -120,6 +131,7 @@ export function EditHighlightDialog({
   onSuccess,
   onDelete,
   trigger,
+  mode = 'authenticated',
 }: EditHighlightDialogProps) {
   const [open, setOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -130,7 +142,7 @@ export function EditHighlightDialog({
     setError(null);
 
     try {
-      await updateHighlight(highlight.id, {
+      const updateData = {
         type: data.type,
         title: data.title,
         content: data.content,
@@ -141,7 +153,15 @@ export function EditHighlightDialog({
         keywords: data.keywords,
         metrics: data.metrics.map(m => ({ ...m, unit: m.unit || '' })),
         isHidden: data.isHidden,
-      });
+      };
+
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.updateHighlight(highlight.id, updateData);
+      } else {
+        await updateHighlight(highlight.id, updateData);
+      }
 
       setOpen(false);
       onSuccess?.();
@@ -155,7 +175,13 @@ export function EditHighlightDialog({
   const handleDelete = async () => {
     setIsSubmitting(true);
     try {
-      await deleteHighlight(highlight.id);
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.deleteHighlight(highlight.id);
+      } else {
+        await deleteHighlight(highlight.id);
+      }
       setOpen(false);
       onDelete?.();
     } catch (err) {
@@ -245,6 +271,3 @@ function DeleteHighlightDialog({
     </AlertDialog>
   );
 }
-
-// Import Trash at the top
-import { Trash } from 'lucide-react';

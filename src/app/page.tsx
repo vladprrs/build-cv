@@ -5,6 +5,7 @@ import {
   getAllDomains,
   getAllSkills,
 } from '@/app/actions';
+import { auth } from '@/auth';
 import type { HighlightType } from '@/lib/data-types';
 
 interface SearchParams {
@@ -20,6 +21,7 @@ export default async function HomePage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
+  const session = await auth();
   const params = await searchParams;
 
   // Parse filters from URL
@@ -31,20 +33,36 @@ export default async function HomePage({
     onlyWithMetrics: params.metrics === 'true' || undefined,
   };
 
-  // Fetch initial data
-  const [jobs, domains, skills] = await Promise.all([
-    searchJobsWithHighlights(filters),
-    getAllDomains(),
-    getAllSkills(),
-  ]);
+  if (session?.user) {
+    // Authenticated: server-side fetch
+    const [jobs, domains, skills] = await Promise.all([
+      searchJobsWithHighlights(filters),
+      getAllDomains(),
+      getAllSkills(),
+    ]);
 
+    return (
+      <Suspense fallback={<div className="min-h-screen bg-background" />}>
+        <UnifiedFeed
+          initialJobs={jobs}
+          domains={domains}
+          skills={skills}
+          searchJobsAction={searchJobsWithHighlights}
+          mode="authenticated"
+        />
+      </Suspense>
+    );
+  }
+
+  // Anonymous: pass empty initial data, UnifiedFeed loads from IndexedDB
   return (
     <Suspense fallback={<div className="min-h-screen bg-background" />}>
       <UnifiedFeed
-        initialJobs={jobs}
-        domains={domains}
-        skills={skills}
+        initialJobs={[]}
+        domains={[]}
+        skills={[]}
         searchJobsAction={searchJobsWithHighlights}
+        mode="anonymous"
       />
     </Suspense>
   );
