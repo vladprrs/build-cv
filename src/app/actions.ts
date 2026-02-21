@@ -92,7 +92,12 @@ export async function getJobById(id: string): Promise<Job | null> {
 export async function createJob(data: Omit<NewJob, 'id' | 'createdAt' | 'updatedAt'>) {
   const validated = jobSchema.parse(data);
   const dl = await getDataLayer();
-  const result = await dl.createJob(validated);
+  const result = await dl.createJob({
+    ...validated,
+    endDate: validated.endDate ?? null,
+    logoUrl: validated.logoUrl ?? null,
+    website: validated.website ?? null,
+  });
 
   revalidatePath('/jobs');
   revalidatePath('/');
@@ -210,7 +215,11 @@ export async function getHighlightById(id: string): Promise<Highlight | null> {
 export async function createHighlight(data: Omit<NewHighlight, 'id' | 'createdAt' | 'updatedAt'>) {
   const validated = highlightSchema.parse(data);
   const dl = await getDataLayer();
-  const result = await dl.createHighlight(validated);
+  const result = await dl.createHighlight({
+    ...validated,
+    jobId: validated.jobId ?? null,
+    endDate: validated.endDate ?? null,
+  });
 
   revalidatePath('/jobs');
   revalidatePath('/');

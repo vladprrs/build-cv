@@ -2,6 +2,7 @@ import type { DataLayer } from './types';
 import type {
   Job,
   Highlight,
+  HighlightType,
   InsertJob,
   InsertHighlight,
   UpdateJob,
@@ -70,7 +71,7 @@ export class ServerActionProxy implements DataLayer {
 
   async getHighlights(filters?: {
     jobId?: string;
-    type?: string;
+    type?: HighlightType;
     isHidden?: boolean;
   }): Promise<Highlight[]> {
     return getHighlightsAction(filters);

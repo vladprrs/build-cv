@@ -4,6 +4,7 @@ import type { DataLayer } from './types';
 import type {
   Job,
   Highlight,
+  HighlightType,
   InsertJob,
   InsertHighlight,
   UpdateJob,
@@ -17,10 +18,6 @@ import type {
   BackupData,
   ImportResult,
 } from '@/lib/data-types';
-
-type DrizzleDb = Parameters<typeof ServerDataLayer['prototype']['_unused']> extends never
-  ? ReturnType<typeof import('@/db').getOwnerDb>
-  : never;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyDrizzle = any;
@@ -125,7 +122,7 @@ export class ServerDataLayer implements DataLayer {
       }
     }
 
-    return allJobs.map((job) => ({
+    return allJobs.map((job: Job) => ({
       ...job,
       highlights: highlightsByJob.get(job.id) || [],
     }));
@@ -133,12 +130,12 @@ export class ServerDataLayer implements DataLayer {
 
   async getHighlights(filters?: {
     jobId?: string;
-    type?: string;
+    type?: HighlightType;
     isHidden?: boolean;
   }): Promise<Highlight[]> {
     const conditions = [];
     if (filters?.jobId) conditions.push(eq(highlights.jobId, filters.jobId));
-    if (filters?.type) conditions.push(eq(highlights.type, filters.type));
+    if (filters?.type) conditions.push(eq(highlights.type, filters.type as typeof highlights.type.enumValues[number]));
     if (filters?.isHidden !== undefined)
       conditions.push(eq(highlights.isHidden, filters.isHidden));
 
@@ -322,7 +319,7 @@ export class ServerDataLayer implements DataLayer {
       }
     }
 
-    return allJobs.map((job) => ({
+    return allJobs.map((job: Job) => ({
       ...job,
       highlights: filteredByJob.get(job.id) || [],
       allHighlightsCount: highlightCountByJob.get(job.id) || 0,
