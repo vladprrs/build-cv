@@ -50,18 +50,34 @@ export async function createUserDatabase(userId: string): Promise<CreateDatabase
     }),
   });
 
-  if (!createRes.ok) {
+  let dbUrl: string;
+
+  if (createRes.ok) {
+    const createData = await createRes.json();
+    const hostname = createData.database?.hostname;
+    if (!hostname) {
+      throw new Error('No hostname returned from database creation');
+    }
+    dbUrl = `libsql://${hostname}`;
+  } else if (createRes.status === 409) {
+    // Database already exists — look up its hostname
+    const getRes = await fetch(
+      `${TURSO_API_BASE}/organizations/${org}/databases/${dbName}`,
+      { method: 'GET', headers }
+    );
+    if (!getRes.ok) {
+      throw new Error(`Failed to get existing database: ${getRes.status} ${await getRes.text()}`);
+    }
+    const getData = await getRes.json();
+    const hostname = getData.database?.hostname;
+    if (!hostname) {
+      throw new Error('No hostname returned for existing database');
+    }
+    dbUrl = `libsql://${hostname}`;
+  } else {
     const errorBody = await createRes.text();
     throw new Error(`Failed to create database: ${createRes.status} ${errorBody}`);
   }
-
-  const createData = await createRes.json();
-  const hostname = createData.database?.hostname;
-  if (!hostname) {
-    throw new Error('No hostname returned from database creation');
-  }
-
-  const dbUrl = `libsql://${hostname}`;
 
   // Create RW auth token
   const rwTokenRes = await fetch(
