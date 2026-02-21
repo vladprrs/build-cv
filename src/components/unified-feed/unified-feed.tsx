@@ -47,6 +47,7 @@ function UnifiedFeedContent({
 
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
   const [showNewJobDialog, setShowNewJobDialog] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
   const [fullName, setFullName] = useState('');
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameInputValue, setNameInputValue] = useState('');
@@ -138,7 +139,8 @@ function UnifiedFeedContent({
 
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
-        searchInputRef.current?.focus();
+        setShowSearch(true);
+        setTimeout(() => searchInputRef.current?.focus(), 0);
         return;
       }
 
@@ -154,16 +156,19 @@ function UnifiedFeedContent({
         return;
       }
 
-      if (e.key === 'Escape' && document.activeElement === searchInputRef.current) {
+      if (e.key === 'Escape' && showSearch) {
         e.preventDefault();
         searchInputRef.current?.blur();
+        if (!hasActiveFilters) {
+          setShowSearch(false);
+        }
         return;
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
+  }, [showSearch, hasActiveFilters]);
 
   const handleNameSave = useCallback(async () => {
     const trimmed = nameInputValue.trim();
@@ -275,20 +280,24 @@ function UnifiedFeedContent({
             </div>
           </div>
 
-          {/* Search & Filters */}
-          <div className="py-6 space-y-4">
-            <SearchBar searchInputRef={searchInputRef} />
-            <FilterBar domains={domains} skills={skills} />
-          </div>
+          {/* Search & Filters — hidden until Cmd+K */}
+          {showSearch && (
+            <div className="py-6 space-y-4">
+              <SearchBar searchInputRef={searchInputRef} />
+              <FilterBar domains={domains} skills={skills} />
+            </div>
+          )}
         </div>
       </header>
 
       {/* Main Content */}
       <main className="mx-auto max-w-3xl px-4 sm:px-6 pb-24">
-        <ResultsHeader
-          totalHighlights={totalHighlights}
-          filteredCount={filteredHighlights}
-        />
+        {showSearch && (
+          <ResultsHeader
+            totalHighlights={totalHighlights}
+            filteredCount={filteredHighlights}
+          />
+        )}
 
         {/* Jobs Feed */}
         <div className="mt-6 space-y-6">
