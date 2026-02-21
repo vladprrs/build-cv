@@ -79,13 +79,13 @@ export async function createUserDatabase(userId: string): Promise<CreateDatabase
     throw new Error(`Failed to create database: ${createRes.status} ${errorBody}`);
   }
 
-  // Create RW auth token
+  // Create full-access auth token
   const rwTokenRes = await fetch(
     `${TURSO_API_BASE}/organizations/${org}/databases/${dbName}/auth/tokens`,
     {
       method: 'POST',
       headers,
-      body: JSON.stringify({ permissions: { read_attach: { databases: ['*'] } } }),
+      body: JSON.stringify({}),
     }
   );
 
@@ -104,7 +104,6 @@ export async function createUserDatabase(userId: string): Promise<CreateDatabase
       method: 'POST',
       headers,
       body: JSON.stringify({
-        permissions: { read_attach: { databases: ['*'] } },
         authorization: 'read-only',
       }),
     }
