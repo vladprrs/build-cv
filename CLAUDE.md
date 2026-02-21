@@ -74,6 +74,8 @@ Three tables in `src/db/schema.ts`:
 
 - `src/app/actions.ts` — Server Actions with `getDataLayer()` helper for session-based DB routing
 - `src/app/actions/user-db.ts` — User DB provisioning, info retrieval, data migration
+- `src/app/actions/optimize.ts` — `generateResume()` server action: calls n8n webhook, returns structured JSON resume
+- `src/app/optimize/page.tsx` — Resume optimizer page: vacancy input, AI-generated resume preview, inline editing, PDF export
 - `src/lib/data-layer/` — DataLayer interface + 3 implementations
 - `src/auth/index.ts` — Auth.js config (providers, adapter, callbacks)
 - `src/auth/admin-schema.ts` — Admin DB Drizzle schema
@@ -90,8 +92,20 @@ Three tables in `src/db/schema.ts`:
 | Route | Purpose |
 |-------|---------|
 | `/` | Timeline view — server-rendered for authenticated, client-loaded for anonymous |
+| `/optimize` | AI resume optimizer — paste vacancy, get tailored resume (authenticated only) |
 | `/settings` | Account info, n8n integration (DB URL + read-only token), data storage indicator |
 | `/api/auth/[...nextauth]` | Auth.js route handler |
+
+### n8n Integration
+
+Two n8n workflows on `https://n8n.vladpr.com`:
+
+- **CV Optimizer Bot (Agent)** (`ecsPWCyyJsZXT_343TPDj`) — Telegram bot, accepts vacancy text, generates Markdown resume
+- **Resume Optimizer (Web)** (`NKCUVz9QGj1dp5fw`) — Webhook-triggered, accepts `{ vacancyText, dbUrl, dbToken }`, returns structured JSON resume
+
+The web workflow flow: Webhook POST → Validate Input → Fetch Turso Data (using dynamic dbUrl/dbToken from request) → Prepare Agent Input → AI Agent (OpenRouter gpt-5.2) with get_highlights tool → Respond with JSON.
+
+The `/optimize` page calls `generateResume()` server action, which gets the user's Turso read-only token via `getUserDatabaseInfo()`, sends it to the n8n webhook, and renders the returned JSON as an editable resume with PDF export.
 
 ### Conventions
 
@@ -126,6 +140,9 @@ AUTH_GITHUB_ID="github-oauth-app-id"
 AUTH_GITHUB_SECRET="github-oauth-app-secret"
 AUTH_GOOGLE_ID="google-oauth-client-id"
 AUTH_GOOGLE_SECRET="google-oauth-client-secret"
+
+# n8n Integration
+N8N_WEBHOOK_URL="https://n8n.vladpr.com/webhook/resume-optimize"  # Resume optimizer webhook
 ```
 
 ## Schema Migrations
