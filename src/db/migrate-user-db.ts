@@ -35,6 +35,12 @@ CREATE TABLE IF NOT EXISTS \`jobs\` (
 	\`created_at\` text NOT NULL,
 	\`updated_at\` text NOT NULL
 );
+--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS \`profile\` (
+	\`id\` text PRIMARY KEY NOT NULL DEFAULT 'default',
+	\`full_name\` text DEFAULT '' NOT NULL,
+	\`updated_at\` text NOT NULL
+);
 `;
 
 /**

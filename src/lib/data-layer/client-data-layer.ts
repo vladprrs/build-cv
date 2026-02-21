@@ -19,16 +19,27 @@ import type {
 
 interface DexieJob extends Job {}
 interface DexieHighlight extends Highlight {}
+interface DexieProfile {
+  id: string;
+  fullName: string;
+  updatedAt: string;
+}
 
 class BuildCVDatabase extends Dexie {
   jobs!: EntityTable<DexieJob, 'id'>;
   highlights!: EntityTable<DexieHighlight, 'id'>;
+  profile!: EntityTable<DexieProfile, 'id'>;
 
   constructor() {
     super('buildcv');
     this.version(1).stores({
       jobs: 'id, company, role, startDate, createdAt',
       highlights: 'id, jobId, type, title, startDate, isHidden, createdAt',
+    });
+    this.version(2).stores({
+      jobs: 'id, company, role, startDate, createdAt',
+      highlights: 'id, jobId, type, title, startDate, isHidden, createdAt',
+      profile: 'id',
     });
   }
 }
@@ -218,6 +229,20 @@ export class ClientDataLayer implements DataLayer {
     return updated;
   }
 
+  async getProfile(): Promise<{ fullName: string } | null> {
+    const row = await this.db.profile.get('default');
+    return row ? { fullName: row.fullName } : null;
+  }
+
+  async updateProfile(data: { fullName: string }): Promise<{ fullName: string }> {
+    await this.db.profile.put({
+      id: 'default',
+      fullName: data.fullName,
+      updatedAt: new Date().toISOString(),
+    });
+    return { fullName: data.fullName };
+  }
+
   async getAllHighlightsWithJobs(): Promise<HighlightWithJob[]> {
     const allHighlights = await this.db.highlights
       .orderBy('startDate')
@@ -327,12 +352,14 @@ export class ClientDataLayer implements DataLayer {
     const allHighlights = await this.db.highlights
       .orderBy('startDate')
       .toArray();
+    const profileData = await this.getProfile();
 
     return {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       jobs: allJobs,
       highlights: allHighlights,
+      ...(profileData?.fullName ? { profile: profileData } : {}),
     };
   }
 
@@ -364,6 +391,15 @@ export class ClientDataLayer implements DataLayer {
       }
     }
 
+    if (data.profile?.fullName) {
+      try {
+        await this.updateProfile({ fullName: data.profile.fullName });
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import profile: ${msg}`);
+      }
+    }
+
     result.success = result.errors.length === 0;
     return result;
   }
@@ -381,10 +417,15 @@ export class ClientDataLayer implements DataLayer {
   /**
    * Export all raw data for migration to server.
    */
-  async exportAllRawData(): Promise<{ jobs: Job[]; highlights: Highlight[] }> {
+  async exportAllRawData(): Promise<{ jobs: Job[]; highlights: Highlight[]; profile?: { fullName: string } }> {
     const allJobs = await this.db.jobs.toArray();
     const allHighlights = await this.db.highlights.toArray();
-    return { jobs: allJobs, highlights: allHighlights };
+    const profileData = await this.getProfile();
+    return {
+      jobs: allJobs,
+      highlights: allHighlights,
+      ...(profileData?.fullName ? { profile: profileData } : {}),
+    };
   }
 
   private applyFilters(

@@ -2,7 +2,7 @@
 
 import { db } from '@/db';
 import { getUserDb } from '@/db';
-import { jobs, highlights } from '@/db/schema';
+import { jobs, highlights, profile } from '@/db/schema';
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
@@ -58,6 +58,20 @@ async function getDataLayer(): Promise<ServerDataLayer> {
 
   // Unauthenticated — use owner DB (for backward compat)
   return new ServerDataLayer(db);
+}
+
+// ============ PROFILE ACTIONS ============
+
+export async function getProfile(): Promise<{ fullName: string } | null> {
+  const dl = await getDataLayer();
+  return dl.getProfile();
+}
+
+export async function updateProfile(data: { fullName: string }): Promise<{ fullName: string }> {
+  const dl = await getDataLayer();
+  const result = await dl.updateProfile(data);
+  revalidatePath('/');
+  return result;
 }
 
 // ============ VALIDATION SCHEMAS ============
@@ -458,11 +472,20 @@ export async function exportDatabase(): Promise<BackupData> {
     };
   });
 
+  // Get profile data
+  const profileResult = await currentDb
+    .select({ fullName: profile.fullName })
+    .from(profile)
+    .where(eq(profile.id, 'default'))
+    .limit(1);
+  const profileData = profileResult[0];
+
   return {
     version: "1.0",
     exportedAt: new Date().toISOString(),
     jobs: exportedJobs,
     highlights: exportedHighlights,
+    ...(profileData?.fullName ? { profile: profileData } : {}),
   };
 }
 
@@ -506,6 +529,7 @@ const backupDataSchema = z.object({
   exportedAt: z.string(),
   jobs: z.array(backupJobSchema),
   highlights: z.array(backupHighlightSchema),
+  profile: z.object({ fullName: z.string() }).optional(),
 });
 
 export async function importDatabase(backupData: unknown): Promise<ImportResult> {
@@ -597,6 +621,22 @@ export async function importDatabase(backupData: unknown): Promise<ImportResult>
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         result.errors.push(`Failed to import highlight ${highlight.id}: ${message}`);
+      }
+    }
+
+    if (validated.profile?.fullName) {
+      try {
+        const now = new Date().toISOString();
+        await currentDb
+          .insert(profile)
+          .values({ id: 'default', fullName: validated.profile.fullName, updatedAt: now })
+          .onConflictDoUpdate({
+            target: profile.id,
+            set: { fullName: validated.profile.fullName, updatedAt: now },
+          });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import profile: ${message}`);
       }
     }
 

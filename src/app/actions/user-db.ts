@@ -7,7 +7,7 @@ import { eq } from 'drizzle-orm';
 import { createUserDatabase } from '@/db/turso-platform';
 import { migrateUserDbSchema } from '@/db/migrate-user-db';
 import { createDbFromCredentials } from '@/db';
-import { jobs, highlights } from '@/db/schema';
+import { jobs, highlights, profile } from '@/db/schema';
 import type { Job, Highlight } from '@/lib/types';
 
 /**
@@ -146,6 +146,7 @@ export async function getUserDatabaseStatus(): Promise<string | null> {
 export async function migrateLocalData(data: {
   jobs: Job[];
   highlights: Highlight[];
+  profile?: { fullName: string };
 }) {
   const session = await auth();
   if (!session?.user?.id) throw new Error('Not authenticated');
@@ -204,6 +205,18 @@ export async function migrateLocalData(data: {
           isHidden: highlight.isHidden,
           updatedAt: new Date().toISOString(),
         },
+      });
+  }
+
+  // Import profile
+  if (data.profile?.fullName) {
+    const now = new Date().toISOString();
+    await userDb
+      .insert(profile)
+      .values({ id: 'default', fullName: data.profile.fullName, updatedAt: now })
+      .onConflictDoUpdate({
+        target: profile.id,
+        set: { fullName: data.profile.fullName, updatedAt: now },
       });
   }
 

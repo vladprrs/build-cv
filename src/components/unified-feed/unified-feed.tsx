@@ -47,6 +47,10 @@ function UnifiedFeedContent({
 
   const [showNewHighlightDialog, setShowNewHighlightDialog] = useState(false);
   const [showNewJobDialog, setShowNewJobDialog] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [nameInputValue, setNameInputValue] = useState('');
+  const nameInputRef = useRef<HTMLInputElement>(null);
 
   const totalHighlights = jobs.reduce((sum, job) => sum + job.allHighlightsCount, 0);
   const filteredHighlights = jobs.reduce((sum, job) => sum + job.highlights.length, 0);
@@ -62,14 +66,16 @@ function UnifiedFeedContent({
         const dl = new ClientDataLayer();
         dataLayerRef.current = dl;
 
-        const [jobsData, domainsData, skillsData] = await Promise.all([
+        const [jobsData, domainsData, skillsData, profileData] = await Promise.all([
           dl.searchJobsWithHighlights({}),
           dl.getAllDomains(),
           dl.getAllSkills(),
+          dl.getProfile(),
         ]);
         setJobs(jobsData);
         setDomains(domainsData);
         setSkills(skillsData);
+        if (profileData?.fullName) setFullName(profileData.fullName);
       } catch (error) {
         console.error('Failed to load from IndexedDB:', error);
       } finally {
@@ -78,6 +84,21 @@ function UnifiedFeedContent({
     }
 
     loadFromIndexedDB();
+  }, [mode]);
+
+  // Load profile for authenticated mode
+  useEffect(() => {
+    if (mode !== 'authenticated') return;
+    async function loadProfile() {
+      try {
+        const { getProfile } = await import('@/app/actions');
+        const profileData = await getProfile();
+        if (profileData?.fullName) setFullName(profileData.fullName);
+      } catch (error) {
+        console.error('Failed to load profile:', error);
+      }
+    }
+    loadProfile();
   }, [mode]);
 
   // Re-fetch when filters change
@@ -144,6 +165,23 @@ function UnifiedFeedContent({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
+  const handleNameSave = useCallback(async () => {
+    const trimmed = nameInputValue.trim();
+    setIsEditingName(false);
+    if (trimmed === fullName) return;
+    setFullName(trimmed);
+    try {
+      if (mode === 'anonymous' && dataLayerRef.current) {
+        await dataLayerRef.current.updateProfile({ fullName: trimmed });
+      } else if (mode === 'authenticated') {
+        const { updateProfile } = await import('@/app/actions');
+        await updateProfile({ fullName: trimmed });
+      }
+    } catch (error) {
+      console.error('Failed to save name:', error);
+    }
+  }, [nameInputValue, fullName, mode]);
+
   const handleUpdate = useCallback(async () => {
     if (mode === 'anonymous' && dataLayerRef.current) {
       // Reload from IndexedDB
@@ -173,7 +211,32 @@ function UnifiedFeedContent({
           <div className="flex items-center justify-between py-6 border-b border-border/40">
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-lg font-semibold tracking-tight">Build CV</h1>
+                {isEditingName ? (
+                  <input
+                    ref={nameInputRef}
+                    type="text"
+                    value={nameInputValue}
+                    onChange={(e) => setNameInputValue(e.target.value)}
+                    onBlur={handleNameSave}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') handleNameSave();
+                      if (e.key === 'Escape') setIsEditingName(false);
+                    }}
+                    className="text-lg font-semibold tracking-tight bg-transparent border-b border-foreground/30 outline-none w-48"
+                    autoFocus
+                  />
+                ) : (
+                  <h1
+                    className="text-lg font-semibold tracking-tight cursor-pointer hover:text-foreground/70 transition-colors"
+                    onClick={() => {
+                      setNameInputValue(fullName);
+                      setIsEditingName(true);
+                    }}
+                    title="Click to edit your name"
+                  >
+                    {fullName || 'Your Name'}
+                  </h1>
+                )}
                 <ModeIndicator />
               </div>
               <p className="text-sm text-muted-foreground">

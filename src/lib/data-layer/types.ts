@@ -47,6 +47,10 @@ export interface DataLayer {
   getAllDomains(): Promise<string[]>;
   getAllSkills(): Promise<string[]>;
 
+  // Profile
+  getProfile(): Promise<{ fullName: string } | null>;
+  updateProfile(data: { fullName: string }): Promise<{ fullName: string }>;
+
   // Backup
   exportDatabase(): Promise<BackupData>;
   importDatabase(data: BackupData): Promise<ImportResult>;

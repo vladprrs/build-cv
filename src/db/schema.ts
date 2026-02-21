@@ -43,6 +43,13 @@ export const highlights = sqliteTable('highlights', {
   updatedAt: text('updated_at').notNull(),
 });
 
+// Profile table (single-row, extensible)
+export const profile = sqliteTable('profile', {
+  id: text('id').primaryKey().default('default'),
+  fullName: text('full_name').notNull().default(''),
+  updatedAt: text('updated_at').notNull(),
+});
+
 // Relations
 export const jobsRelations = relations(jobs, ({ many }) => ({
   highlights: many(highlights),

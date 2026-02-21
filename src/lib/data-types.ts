@@ -58,6 +58,7 @@ export interface BackupData {
   exportedAt: string;
   jobs: BackupJob[];
   highlights: BackupHighlight[];
+  profile?: { fullName: string };
 }
 
 export interface ImportResult {

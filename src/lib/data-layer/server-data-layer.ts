@@ -1,5 +1,5 @@
 import { eq, desc, sql, and, asc } from 'drizzle-orm';
-import { jobs, highlights } from '@/db/schema';
+import { jobs, highlights, profile } from '@/db/schema';
 import type { DataLayer } from './types';
 import type {
   Job,
@@ -219,6 +219,27 @@ export class ServerDataLayer implements DataLayer {
     return result[0];
   }
 
+  async getProfile(): Promise<{ fullName: string } | null> {
+    const result = await this.db
+      .select({ fullName: profile.fullName })
+      .from(profile)
+      .where(eq(profile.id, 'default'))
+      .limit(1);
+    return result[0] || null;
+  }
+
+  async updateProfile(data: { fullName: string }): Promise<{ fullName: string }> {
+    const now = new Date().toISOString();
+    await this.db
+      .insert(profile)
+      .values({ id: 'default', fullName: data.fullName, updatedAt: now })
+      .onConflictDoUpdate({
+        target: profile.id,
+        set: { fullName: data.fullName, updatedAt: now },
+      });
+    return { fullName: data.fullName };
+  }
+
   async getAllHighlightsWithJobs(): Promise<HighlightWithJob[]> {
     const allHighlights = await this.db
       .select()
@@ -361,13 +382,14 @@ export class ServerDataLayer implements DataLayer {
       .select()
       .from(highlights)
       .orderBy(asc(highlights.startDate), asc(highlights.title));
+    const profileData = await this.getProfile();
 
-    // Use simple IDs for export - the slug logic stays in the server action layer
     return {
       version: '1.0',
       exportedAt: new Date().toISOString(),
       jobs: allJobs,
       highlights: allHighlights,
+      ...(profileData?.fullName ? { profile: profileData } : {}),
     };
   }
 
@@ -429,6 +451,15 @@ export class ServerDataLayer implements DataLayer {
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Unknown error';
         result.errors.push(`Failed to import highlight ${highlight.id}: ${message}`);
+      }
+    }
+
+    if (data.profile?.fullName) {
+      try {
+        await this.updateProfile({ fullName: data.profile.fullName });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Unknown error';
+        result.errors.push(`Failed to import profile: ${message}`);
       }
     }
 

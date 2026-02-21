@@ -18,6 +18,8 @@ import type {
 } from '@/lib/data-types';
 
 import {
+  getProfile as getProfileAction,
+  updateProfile as updateProfileAction,
   getJobs as getJobsAction,
   getJobById as getJobByIdAction,
   createJob as createJobAction,
@@ -45,6 +47,14 @@ import {
  * Used by authenticated users on the client side.
  */
 export class ServerActionProxy implements DataLayer {
+  async getProfile(): Promise<{ fullName: string } | null> {
+    return getProfileAction();
+  }
+
+  async updateProfile(data: { fullName: string }): Promise<{ fullName: string }> {
+    return updateProfileAction(data);
+  }
+
   async getJobs(): Promise<(Job & { highlightCount: number })[]> {
     return getJobsAction();
   }
