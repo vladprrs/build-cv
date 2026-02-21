@@ -11,13 +11,34 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
-import { ArrowLeft, FileText, Loader2, Printer } from 'lucide-react';
+import { ArrowLeft, FileText, Loader2, Printer, X } from 'lucide-react';
 import { AuthButton } from '@/components/auth/auth-button';
 import { generateResume, type ResumeData } from '@/app/actions/optimize';
 
 // ─── Resume Preview Component ────────────────────────────────────────────────
 
-function ResumePreview({ data }: { data: ResumeData }) {
+function RemoveButton({ onClick }: { onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive flex-shrink-0"
+      title="Remove"
+    >
+      <X className="h-3.5 w-3.5" />
+    </button>
+  );
+}
+
+function ResumePreview({
+  data,
+  onRemoveExperience,
+  onRemoveEducation,
+}: {
+  data: ResumeData;
+  onRemoveExperience: (index: number) => void;
+  onRemoveEducation: (index: number) => void;
+}) {
   return (
     <div id="resume-preview" className="resume-preview">
       <h1
@@ -82,24 +103,27 @@ function ResumePreview({ data }: { data: ResumeData }) {
           </h2>
           <div className="space-y-3">
             {data.experience.map((exp, i) => (
-              <div key={i}>
+              <div key={i} className="group relative">
                 <div className="flex items-baseline justify-between gap-2">
-                  <div>
-                    <span
-                      contentEditable
-                      suppressContentEditableWarning
-                      className="font-semibold text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
-                    >
-                      {exp.role}
-                    </span>
-                    <span className="text-muted-foreground text-sm"> at </span>
-                    <span
-                      contentEditable
-                      suppressContentEditableWarning
-                      className="text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
-                    >
-                      {exp.company}
-                    </span>
+                  <div className="flex items-baseline gap-1.5">
+                    <RemoveButton onClick={() => onRemoveExperience(i)} />
+                    <div>
+                      <span
+                        contentEditable
+                        suppressContentEditableWarning
+                        className="font-semibold text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
+                      >
+                        {exp.role}
+                      </span>
+                      <span className="text-muted-foreground text-sm"> at </span>
+                      <span
+                        contentEditable
+                        suppressContentEditableWarning
+                        className="text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
+                      >
+                        {exp.company}
+                      </span>
+                    </div>
                   </div>
                   <span
                     contentEditable
@@ -151,23 +175,26 @@ function ResumePreview({ data }: { data: ResumeData }) {
           </h2>
           <div className="space-y-2">
             {data.education.map((edu, i) => (
-              <div key={i} className="flex items-baseline justify-between gap-2">
-                <div>
-                  <span
-                    contentEditable
-                    suppressContentEditableWarning
-                    className="font-semibold text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
-                  >
-                    {edu.degree}
-                  </span>
-                  <span className="text-muted-foreground text-sm"> - </span>
-                  <span
-                    contentEditable
-                    suppressContentEditableWarning
-                    className="text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
-                  >
-                    {edu.institution}
-                  </span>
+              <div key={i} className="group flex items-baseline justify-between gap-2">
+                <div className="flex items-baseline gap-1.5">
+                  <RemoveButton onClick={() => onRemoveEducation(i)} />
+                  <div>
+                    <span
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="font-semibold text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
+                    >
+                      {edu.degree}
+                    </span>
+                    <span className="text-muted-foreground text-sm"> - </span>
+                    <span
+                      contentEditable
+                      suppressContentEditableWarning
+                      className="text-sm text-foreground outline-none focus:ring-1 focus:ring-ring rounded px-1 -mx-1"
+                    >
+                      {edu.institution}
+                    </span>
+                  </div>
                 </div>
                 <span
                   contentEditable
@@ -253,6 +280,22 @@ export default function OptimizePage() {
     }
 
     setIsGenerating(false);
+  }
+
+  function handleRemoveExperience(index: number) {
+    if (!resumeData) return;
+    setResumeData({
+      ...resumeData,
+      experience: resumeData.experience.filter((_, i) => i !== index),
+    });
+  }
+
+  function handleRemoveEducation(index: number) {
+    if (!resumeData) return;
+    setResumeData({
+      ...resumeData,
+      education: resumeData.education.filter((_, i) => i !== index),
+    });
   }
 
   function handlePrint() {
@@ -447,7 +490,11 @@ export default function OptimizePage() {
             ) : resumeData ? (
               <Card>
                 <CardContent className="pt-6">
-                  <ResumePreview data={resumeData} />
+                  <ResumePreview
+                    data={resumeData}
+                    onRemoveExperience={handleRemoveExperience}
+                    onRemoveEducation={handleRemoveEducation}
+                  />
                 </CardContent>
               </Card>
             ) : (
