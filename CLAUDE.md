@@ -60,7 +60,7 @@ Data access pattern:
 
 ### Data Model
 
-Two main entities in `src/db/schema.ts`:
+Three tables in `src/db/schema.ts`:
 
 - **Jobs** — Employment contexts (company, role, dates)
 - **Highlights** — Atomic experience units linked to jobs, with:
@@ -68,6 +68,7 @@ Two main entities in `src/db/schema.ts`:
   - Tags: `domains[]`, `skills[]`, `keywords[]` (JSON arrays)
   - Metrics: `{ label, value, unit, prefix?, description? }[]`
   - Soft delete via `isHidden` flag
+- **Profile** — Single-row table (id='default') storing user profile data (fullName). Inline-editable on the main page header. Included in backup/import and local→server migration.
 
 ### Key Files
 
@@ -78,7 +79,7 @@ Two main entities in `src/db/schema.ts`:
 - `src/auth/admin-schema.ts` — Admin DB Drizzle schema
 - `src/db/index.ts` — DB connections (`getOwnerDb()`, `getUserDb(userId)`)
 - `src/db/turso-platform.ts` — Turso Platform API client (DB provisioning, token creation)
-- `src/db/migrate-user-db.ts` — Runs DDL against new user DBs
+- `src/db/migrate-user-db.ts` — Runs DDL against new user DBs (jobs, highlights, profile tables)
 - `src/contexts/data-context.tsx` — DataProvider + `useDataLayer()` hook
 - `src/components/auth/` — AuthButton, ModeIndicator, MigrationHandler
 - `src/lib/types.ts` — Shared TypeScript types (Job, Highlight, Insert/Update types)
@@ -126,6 +127,15 @@ AUTH_GITHUB_SECRET="github-oauth-app-secret"
 AUTH_GOOGLE_ID="google-oauth-client-id"
 AUTH_GOOGLE_SECRET="google-oauth-client-secret"
 ```
+
+## Schema Migrations
+
+- `npm run db:generate` works for generating migration SQL files
+- `npm run db:push` does NOT work with the current drizzle-kit version + Turso driver
+- To apply schema changes to production, run the SQL directly against Turso using `@libsql/client`:
+  - Owner DB: use `TURSO_DATABASE_URL` / `TURSO_AUTH_TOKEN`
+  - Existing user DBs: query `user_databases` table in admin DB for URLs/tokens, run SQL against each
+  - New user DBs get the schema automatically via `src/db/migrate-user-db.ts`
 
 ## Git Workflow
 
