@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useRef, useCallback } from 'react';
 import { EditHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import type { Highlight, Metric, HighlightType } from '@/lib/data-types';
 import { Award, FolderKanban, Briefcase, GraduationCap, Pencil } from 'lucide-react';
@@ -30,10 +31,107 @@ const typeConfig: Record<HighlightType, { icon: React.ReactNode; color: string }
   },
 };
 
+function InlineEditText({
+  value,
+  onSave,
+  className = '',
+  inputClassName = '',
+  multiline = false,
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+  className?: string;
+  inputClassName?: string;
+  multiline?: boolean;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+
+  const startEdit = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(value);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [value]);
+
+  const save = useCallback(() => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) {
+      onSave(trimmed);
+    }
+  }, [draft, value, onSave]);
+
+  const cancel = useCallback(() => {
+    setEditing(false);
+    setDraft(value);
+  }, [value]);
+
+  if (editing) {
+    if (multiline) {
+      return (
+        <textarea
+          ref={inputRef as React.RefObject<HTMLTextAreaElement>}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={save}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); save(); }
+            if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+          }}
+          rows={2}
+          className={`bg-transparent border border-border rounded px-1.5 py-1 outline-none focus:ring-1 focus:ring-ring w-full resize-none ${inputClassName}`}
+        />
+      );
+    }
+    return (
+      <input
+        ref={inputRef as React.RefObject<HTMLInputElement>}
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save(); }
+          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        }}
+        className={`bg-transparent border-b border-foreground/30 outline-none w-full ${inputClassName}`}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={startEdit}
+      className={`cursor-pointer hover:text-foreground/70 transition-colors ${className}`}
+      title="Click to edit"
+    >
+      {value}
+    </span>
+  );
+}
+
 export function HighlightCard({ highlight, onUpdate, onDelete, mode = 'authenticated' }: HighlightCardProps) {
   const type = (highlight.type as HighlightType) || 'achievement';
   const config = typeConfig[type];
   const metrics = (highlight.metrics as Metric[]) || [];
+
+  const handleFieldSave = useCallback(async (field: 'title' | 'content', newValue: string) => {
+    try {
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.updateHighlight(highlight.id, { [field]: newValue });
+      } else {
+        const { updateHighlight } = await import('@/app/actions');
+        await updateHighlight(highlight.id, { [field]: newValue });
+      }
+      onUpdate?.();
+    } catch (error) {
+      console.error(`Failed to update highlight ${field}:`, error);
+    }
+  }, [highlight.id, mode, onUpdate]);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return 'Present';
@@ -50,12 +148,24 @@ export function HighlightCard({ highlight, onUpdate, onDelete, mode = 'authentic
         </span>
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
-            <div>
-              <h4 className="text-sm font-medium leading-snug">{highlight.title}</h4>
+            <div className="flex-1 min-w-0">
+              <h4 className="text-sm font-medium leading-snug">
+                <InlineEditText
+                  value={highlight.title}
+                  onSave={(v) => handleFieldSave('title', v)}
+                  inputClassName="text-sm font-medium"
+                />
+              </h4>
               {highlight.content && (
-                <p className="text-sm text-muted-foreground mt-1 line-clamp-2">
-                  {highlight.content}
-                </p>
+                <div className="text-sm text-muted-foreground mt-1">
+                  <InlineEditText
+                    value={highlight.content}
+                    onSave={(v) => handleFieldSave('content', v)}
+                    className="line-clamp-2"
+                    inputClassName="text-sm text-muted-foreground"
+                    multiline
+                  />
+                </div>
               )}
             </div>
             <EditHighlightDialog

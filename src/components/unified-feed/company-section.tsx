@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { HighlightCard } from '@/components/cards/highlight-card';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { EditJobDialog } from '@/components/dialogs/job-dialog';
@@ -38,6 +38,68 @@ function formatDuration(startDate: string, endDate: string | null): string {
   return `${y}yr ${m}mo`;
 }
 
+function InlineEdit({
+  value,
+  onSave,
+  className = '',
+  inputClassName = '',
+}: {
+  value: string;
+  onSave: (newValue: string) => void;
+  className?: string;
+  inputClassName?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const startEdit = useCallback(() => {
+    setDraft(value);
+    setEditing(true);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  }, [value]);
+
+  const save = useCallback(() => {
+    setEditing(false);
+    const trimmed = draft.trim();
+    if (trimmed && trimmed !== value) {
+      onSave(trimmed);
+    }
+  }, [draft, value, onSave]);
+
+  const cancel = useCallback(() => {
+    setEditing(false);
+    setDraft(value);
+  }, [value]);
+
+  if (editing) {
+    return (
+      <input
+        ref={inputRef}
+        type="text"
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') { e.preventDefault(); save(); }
+          if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+        }}
+        className={`bg-transparent border-b border-foreground/30 outline-none ${inputClassName}`}
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={startEdit}
+      className={`cursor-pointer hover:text-foreground/70 transition-colors ${className}`}
+      title="Click to edit"
+    >
+      {value}
+    </span>
+  );
+}
+
 export function CompanySection({
   job,
   highlights,
@@ -46,6 +108,31 @@ export function CompanySection({
   mode = 'authenticated',
 }: CompanySectionProps) {
   const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
+  const handleJobFieldSave = useCallback(async (field: 'company' | 'role', newValue: string) => {
+    try {
+      const update = {
+        company: job.company,
+        role: job.role,
+        startDate: job.startDate,
+        endDate: job.endDate,
+        logoUrl: job.logoUrl,
+        website: job.website,
+        [field]: newValue,
+      };
+      if (mode === 'anonymous') {
+        const { ClientDataLayer } = await import('@/lib/data-layer/client-data-layer');
+        const dl = new ClientDataLayer();
+        await dl.updateJob(job.id, update);
+      } else {
+        const { updateJob } = await import('@/app/actions');
+        await updateJob(job.id, update);
+      }
+      onUpdate();
+    } catch (error) {
+      console.error(`Failed to update job ${field}:`, error);
+    }
+  }, [job, mode, onUpdate]);
 
   return (
     <div className="group">
@@ -72,13 +159,25 @@ export function CompanySection({
         {/* Info */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="font-medium">{job.company}</h3>
+            <h3 className="font-medium">
+              <InlineEdit
+                value={job.company}
+                onSave={(v) => handleJobFieldSave('company', v)}
+                inputClassName="font-medium w-48"
+              />
+            </h3>
             <span className="text-xs text-muted-foreground">
               {formatDuration(job.startDate, job.endDate)}
             </span>
           </div>
           <p className="text-sm text-muted-foreground">
-            {job.role} · {formatDate(job.startDate)} — {formatDate(job.endDate)}
+            <InlineEdit
+              value={job.role}
+              onSave={(v) => handleJobFieldSave('role', v)}
+              inputClassName="text-sm w-40"
+            />
+            {' · '}
+            {formatDate(job.startDate)} — {formatDate(job.endDate)}
           </p>
         </div>
 
