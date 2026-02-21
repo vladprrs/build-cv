@@ -11,7 +11,7 @@ import { CreateJobDialog } from '@/components/dialogs/job-dialog';
 import { CreateHighlightDialog } from '@/components/dialogs/highlight-dialog';
 import { AuthButton } from '@/components/auth/auth-button';
 import { ModeIndicator } from '@/components/auth/mode-indicator';
-import { Settings, Plus } from 'lucide-react';
+import { Settings, Plus, Sparkles } from 'lucide-react';
 import Link from 'next/link';
 import type { HighlightType, JobWithFilteredHighlights } from '@/lib/data-types';
 
@@ -245,6 +245,15 @@ function UnifiedFeedContent({
             </div>
             <div className="flex items-center gap-3">
               <AuthButton />
+              {mode === 'authenticated' && (
+                <Link
+                  href="/optimize"
+                  className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+                  title="Optimize Resume"
+                >
+                  <Sparkles className="h-5 w-5" />
+                </Link>
+              )}
               <Link
                 href="/settings"
                 className="p-2 text-muted-foreground hover:text-foreground transition-colors"
